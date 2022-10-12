@@ -1,6 +1,5 @@
 # COVID-19 Dataset by Our World in Data
 # https://github.com/owid/covid-19-data/tree/master/public/data
-library(dplyr)
 
 lokalizacja <- getwd()
 
@@ -168,12 +167,3 @@ full_data_Johns_Hopkins_University$date <- as.Date(full_data_Johns_Hopkins_Unive
 # $ weekly_deaths   <dbl> NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA~
 # $ biweekly_cases  <dbl> NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA~
 # $ biweekly_deaths <dbl> NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA~
-
-
-
-
-
-
-
-
-

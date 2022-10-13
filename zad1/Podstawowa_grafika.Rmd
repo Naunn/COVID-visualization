@@ -1,0 +1,84 @@
+---
+title: "Religie świata"
+author: "Bartosz"
+date: "13 10 2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(dplyr)
+library(plotly)
+library(tidyr)
+```
+
+```{r religions, echo = FALSE}
+Religions <- read.csv("Religions.csv", sep = ";")
+Religions <- cbind(Religions["year"],
+                   Religions[, grepl("_all" ,names(Religions))],
+                   Religions["population"],
+                   Religions["world_population"])
+```
+
+# Zobrazować rozwój na przełomie lat głównych religii świata.
+```{r 1, echo = FALSE}
+fig <- plot_ly(Religions, x = ~year, y = ~world_population, name = 'world_population', type = 'scatter', mode = 'lines')
+fig <- fig %>% add_trace(y = ~christianity_all, name = 'christianity_all', type = 'scatter', mode = 'lines')
+fig <- fig %>% add_trace(y = ~islam_all, name = 'islam_all', type = 'scatter', mode = 'lines')
+fig <- fig %>% add_trace(y = ~hinduism_all, name = 'hinduism_all', type = 'scatter', mode = 'lines')
+fig <- fig %>% add_trace(y = ~religion_all, name = 'religion_all', type = 'scatter', mode = 'lines')
+fig <- fig %>% layout(title = "Rozwój głównych religii na przełomie lat",
+                      xaxis = list(title = "Lata"),
+                      yaxis = list (title = "Liczba ludności"))
+fig
+```
+
+# Policzyć jak na przestrzeni lat zmienia się różnica między liczbą chrześcijan, a muzułmanów. Zobrazować to odpowiednim wykresem.
+```{r 2, echo = FALSE}
+fig1 <- plot_ly(Religions, x = ~year, y = ~christianity_all, name = 'christianity_all', type = 'scatter', mode = 'lines')
+fig1 <- fig1 %>% add_trace(y = ~islam_all, name = 'islam_all', type = 'scatter', mode = 'lines')
+fig1 <- fig1 %>% layout(title = "Różnica między ludnością chrześcijańską, a islamu, na przełomie lat",
+                        xaxis = list(range = c(1944,2011),showticklabels=FALSE),
+                        yaxis = list (title = "Przyrost wyznawców"))
+
+fig2 <- plot_ly(mutate(Religions, "christ_minus_islam" = christianity_all - islam_all),
+               x = ~year,
+               y = ~christ_minus_islam,
+               name = 'christ_minus_islam',
+               type = 'scatter',
+               mode = 'markers')
+fig2 <- fig2 %>% layout(title = "Rozwój chrześcijaństwa i islamu na przełomie lat",
+                        xaxis = list(title = "Lata", range = c(1944,2011)),
+                        yaxis = list (title = "Różnica w liczbie wyznawców"))
+
+fig <- subplot(fig1, fig2, nrows = 2, titleY = TRUE, titleX = FALSE)
+fig
+```
+
+# Na wybranym wykresie zobrazować jak wyglądała liczebność głównych religii świata w 2010 roku.
+```{r 3, echo = FALSE}
+Religions2010 <- Religions %>% filter(year == 2010) %>% mutate(other = religion_all -
+                                                                 christianity_all -
+                                                                 islam_all -
+                                                                 hinduism_all -
+                                                                 judaism_all -
+                                                                 buddhism_all -
+                                                                 noreligion_all) %>% 
+  select(c("year",
+           "christianity_all",
+           "islam_all",
+           "hinduism_all",
+           "judaism_all",
+           "buddhism_all",
+           "noreligion_all",
+           "other"))
+Religions2010 <- Religions2010 %>% pivot_longer(!year, names_to = "religion", values_to = "count")
+
+fig <- plot_ly(Religions2010, labels = ~religion, values = ~count, type = 'pie')
+fig <- fig %>% layout(title = 'Liczebność głównych religii świata w 2010 roku',
+                      xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+                      yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE))
+
+fig
+```

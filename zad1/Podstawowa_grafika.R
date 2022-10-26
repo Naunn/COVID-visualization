@@ -9,7 +9,7 @@ data(rivers) # Lengths of Major North American Rivers
 hist(rivers,
      breaks = 50,
      freq = TRUE,
-     main = "CZĘSTOTLIWOŚĆ WYSTEPOWANIA RZEK O OKREŚLONYCH DŁUGOŚCIACH (KM)",
+     main = "CZĘSTOTLIWOŚĆ WYSTĘPOWANIA RZEK O OKREŚLONYCH DŁUGOŚCIACH (KM)",
      xlab = "ILOŚĆ RZEK",
      ylab = "DŁUGOŚĆ RZEKI",
      xlim = c(0, 4000),
@@ -42,7 +42,9 @@ plot(rivers,
 ### CZĘŚĆ 2 ----
 # Bierzemy pod uwagę tylko dane dotyczące: wszystkich chrześcijan (christianity_all), całego islamu (islam_all),
 # hindulizmu (hinduism_all), wyznawców wszystkich religii (religion_all), wyznawców innych religii poza tymi trzema wiodącymi.
-Religions <- read.csv("Religions.csv", sep = ";")
+lokalizacja <- getwd()
+
+Religions <- read.csv(paste0(lokalizacja,"/zad1/Religions.csv"), sep = ";")
 Religions %>% colnames()
 # [1]  "year"                         "christianity_protestant"     
 # [3]  "christianity_romancatholic"   "christianity_easternorthodox"

@@ -24,20 +24,28 @@ covid_testing_all_observations$week <- lubridate::ceiling_date(covid_testing_all
                                                                change_on_boundary = TRUE)
 
 # Podglad ilosci danych/tygodni (niezerowych)
-covid_testing_all_observations %>%
-  select(week, ISO.code, Cumulative.total) %>% 
+covid_testing_count <- covid_testing_all_observations %>%
+  select(week, ISO.code, Cumulative.total) %>%
   group_by(ISO.code, week) %>%
   summarize(sum = sum(Cumulative.total, na.rm = TRUE)) %>%
-  filter(sum > 0) %>% 
+  filter(sum > 0) %>%
   .$ISO.code %>%
   table() %>%
-  as.data.frame() %>% View()
+  as.data.frame()
+
+covid_testing_count %>% filter(Freq > 90) # bieżemy pod uwagę kraje, w których pojawiają się 3 miesiące danych
 
 # Uspójnienie osi (mozna teraz łatwo rysować wartosci)
 covid_testing_agg <- covid_testing_all_observations %>%
-  select(week, ISO.code, Cumulative.total) %>% 
+  select(week, ISO.code, Cumulative.total, Short.term.positive.rate) %>%
   group_by(ISO.code, week) %>%
-  summarize(sum = sum(Cumulative.total, na.rm = TRUE))
+  summarize(cumulative_per_week = sum(Cumulative.total, na.rm = TRUE),
+            Short.term.positive.rate = mean(Short.term.positive.rate, na.rm = TRUE) %>%
+              format(9999, scientific = FALSE)) %>% # Usuniecie zapisu naukowego, tj. z "e"
+  # jeszcze trzeba usunac "NaN'-y ze sredniej
+  filter(cumulative_per_week > 0) %>% 
+  inner_join(covid_testing_count %>% filter(Freq > 90), by = c("ISO.code" = ".")) %>% 
+  select(!Freq)
 
 fig <- plot_ly(covid_testing_agg,
               x = ~week,
@@ -48,5 +56,23 @@ fig <- plot_ly(covid_testing_agg,
 fig
 
 
-# zrobic cumulative na tysiac (wtedy wyeliminujemy problem rozmiaru panstwa)
+# zrobic cumulative na tysiac (wtedy wyeliminujemy problem rozmiaru panstwa) - troche sie to nie klei
+# jakby podzielic ilosc testow przez populacje danego panstwa? i porownac ilosc testow do ludnosci wraz ze (wstepnie) pozytywnym wynikiem 
 # dodac positive rate
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

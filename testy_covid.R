@@ -8,6 +8,7 @@ source("dane.R")
 
 library(dplyr)
 library(plotly)
+library(tidyr)
 
 ## Analiza testowania
 covid_testing_all_observations %>%
@@ -37,30 +38,50 @@ covid_testing_count %>% filter(Freq > 90) # bieżemy pod uwagę kraje, w któryc
 
 # Uspójnienie osi (mozna teraz łatwo rysować wartosci)
 covid_testing_agg <- covid_testing_all_observations %>%
-  select(week, ISO.code, Cumulative.total, Short.term.positive.rate) %>%
+  select(week,
+         ISO.code,
+         X7.day.smoothed.daily.change,
+         X7.day.smoothed.daily.change.per.thousand,
+         Cumulative.total,
+         Short.term.positive.rate) %>%
   group_by(ISO.code, week) %>%
-  summarize(cumulative_per_week = sum(Cumulative.total, na.rm = TRUE),
-            Short.term.positive.rate = mean(Short.term.positive.rate, na.rm = TRUE) %>%
+  summarize(suma_testow_tyg = sum(X7.day.smoothed.daily.change, na.rm = TRUE),
+            avg_test_tyg_1000 = round(mean(X7.day.smoothed.daily.change.per.thousand, na.rm = TRUE),4),
+            cumulative_per_week = sum(Cumulative.total, na.rm = TRUE),
+            Short.term.positive.rate = round(mean(Short.term.positive.rate, na.rm = TRUE),4) %>%
               format(9999, scientific = FALSE)) %>% # Usuniecie zapisu naukowego, tj. z "e"
   # jeszcze trzeba usunac "NaN'-y ze sredniej
   filter(cumulative_per_week > 0) %>% 
   inner_join(covid_testing_count %>% filter(Freq > 90), by = c("ISO.code" = ".")) %>% 
-  select(!Freq)
+  select(!Freq) %>% 
+  mutate(Short.term.positive.rate = as.numeric(Short.term.positive.rate)) %>% 
+  replace(is.na(.), 0)
 
-fig <- plot_ly(covid_testing_agg,
+# short.term.positive.rate - 100 x Liczba nowych potwierdzonych przypadków/liczba testów wykonanych w tygodniu
+
+kraj = "RUS"
+baza <- covid_testing_agg %>% filter(ISO.code == kraj)
+kor <- cor.test(baza$suma_testow_tyg, baza$Short.term.positive.rate, method=c("pearson", "kendall", "spearman"))
+ifelse(kor$p.value < 0.05,
+       paste("Korelacja pomiędzy zmiennymi jest statystycznie istotna i wynosi:",round(kor$estimate,2)),
+       paste("Korelacja pomiędzy zmiennymi jest statystycznie nieistotna i wynosi:",round(kor$estimate,2)))
+
+fig1 <- plot_ly(baza,
               x = ~week,
-              y = ~sum,
+              y = ~suma_testow_tyg,
               name = ~ISO.code,
               type = 'scatter',
               mode = 'lines+markers')
+fig2 <- plot_ly(baza,
+                x = ~week,
+                y = ~Short.term.positive.rate,
+                name = ~ISO.code,
+                type = 'scatter',
+                mode = 'lines+markers')
+fig <- subplot(fig1, fig2, nrows = 2)
 fig
-
-
-# zrobic cumulative na tysiac (wtedy wyeliminujemy problem rozmiaru panstwa) - troche sie to nie klei
-# jakby podzielic ilosc testow przez populacje danego panstwa? i porownac ilosc testow do ludnosci wraz ze (wstepnie) pozytywnym wynikiem 
-# dodac positive rate
-
-
+# pomysl: wyswietlanie porownania lacznej ilosc testow w tygodniu + % pozytywnych wynikow
+# + wniosek z testu korelacji tych zmiennych (wszystko dla wskazanego panstwa)
 
 
 

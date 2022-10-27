@@ -1,0 +1,74 @@
+---
+title: "cars_guinea_pigs"
+author: "Bartosz"
+date: "27 10 2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include=FALSE}
+library(dplyr)
+library(ggplot2)
+data(ToothGrowth)
+```
+
+## Zbadać zależność zużycia paliwa od wagi samochodu. Dodać zmienną która obrazuje liczbą cylindrów samochodu.
+Testy drogowe samochodów. Dane pochodzą z magazynu Motor Trend US (1974 r.). Obejmują zużycie paliwa oraz
+10 aspektów konstrukcji i osiągów samochodu dla 32 samochodów (modele z lat 1973-74). \
+mpg  - Miles/(US) gallon (1 mpg (US) = 0.425144 km/L) \
+cyl  - Number of cylinders \
+disp - Displacement (cu.in.) \
+hp   - Gross horsepower \
+drat - Rear axle ratio \
+wt   - Weight (1000 lbs) (1 pound (lb) is equal to 0.45359237 kilograms (kg)) \
+qsec - 1/4 mile time \
+vs   - Engine (0 = V-shaped, 1 = straight) \
+am   - Transmission (0 = automatic, 1 = manual) \
+gear - Number of forward gears
+
+```{r, echo=FALSE, warning=FALSE}
+mtcars <- mtcars %>% mutate(kml = round(mpg*0.425144,1),
+                            kg = round(wt*1000*0.45359237))
+
+ggplot(mtcars, aes(x=kml, y=kg, color=as.character(mtcars$cyl))) +
+  geom_point(size=5)+scale_color_brewer(name = "Liczba cylindrów", palette="Accent") +
+  ylab("Waga (kg)") + xlab("Spalanie (km/l)")
+
+kor <- cor.test(mtcars$kml, mtcars$kg, method=c("pearson", "kendall", "spearman"))
+ifelse(kor$p.value < 0.05,
+       paste("Korelacja pomiędzy spalaniem, a wagą jest statystycznie istotna i wynosi:",round(kor$estimate,2)),
+       paste("Korelacja pomiędzy spalaniem, a wagą jest statystycznie nieistotna i wynosi:",round(kor$estimate,2)))
+```
+
+## Zbadać wpływ witaminy C na wzrost zębów świnek morskich.
+Długości odontoblastów (komórek odpowiedzialnych za wzrost zębów) u 60 świnek morskich. \
+Każde zwierzę otrzymało jedną z trzech dawek witaminy C (0,5, 1 i 2 mg / dzień) jedną z dwóch metod dostarczania, \
+sokiem pomarańczowym lub kwasem askorbinowym (forma witaminy C i oznaczona jako VC).
+
+```{r, echo=FALSE}
+ggplot(ToothGrowth %>% mutate(dose = as.character(dose)), aes(x=supp, y=len)) + 
+  geom_violin(aes(fill=dose)) +
+  xlab("Wielkość dawki (mg/dzień)") +
+  ylab("Długość") +
+  labs(title = "Długość odontoblastów",
+       subtitle = "(przy skupieniu się na wpływie metod dostarczania)")
+
+ggplot(ToothGrowth %>% mutate(dose = as.character(dose)), aes(x=dose, y=len)) + 
+  geom_violin(aes(fill=supp)) +
+  xlab("Wielkość dawki (mg/dzień)") +
+  ylab("Długość") +
+  labs(title = "Długość odontoblastów",
+       subtitle = "(przy skupieniu się na wpływie wielkości dawek)")
+
+kor <- cor.test(ToothGrowth$len, ToothGrowth$dose, method=c("pearson", "kendall", "spearman"))
+ifelse(kor$p.value < 0.05,
+       paste("Korelacja pomiędzy wielkością dawki, a długością odontoblastów jest statystycznie istotna i wynosi:",round(kor$estimate,2)),
+       paste("Korelacja pomiędzy wielkością dawki, a długością odontoblastów jest statystycznie nieistotna i wynosi:",round(kor$estimate,2)))
+
+```
+
+
+

@@ -80,10 +80,90 @@ full_data_Johns_Hopkins_University
 # [225] "Venezuela"                        "Vietnam"                          "Wallis and Futuna"                "World"                           
 # [229] "Yemen"                            "Zambia"                           "Zimbabwe"                        
 
+kraj = "Poland"
+# wszystkie przypadki vs wszystkie zgony (problem z danymi w hospitalizacji)
+# korelacja pomiedzy iloscia wszystkich przypadkow a iloscia zgonow, patrzymy, czy jest jakas zaleznosc (czy zgony rosna)
+fig <- plot_ly(full_data_Johns_Hopkins_University %>% filter(location == kraj),
+               x = ~date,
+               y = ~total_cases,
+               type = 'bar',
+               name = 'total cases')
+fig <- fig %>% add_trace(y = ~total_deaths, name = 'total deaths')
+fig <- fig %>% layout(yaxis = list(title = 'Count'), barmode = 'stack')
+fig
+
+# analogicznie na nowych przypadkach (teoretycznie, jezeli dobra wydolnosc, to poziom nowych zgonow niezmienna) - malo czytelne
+fig <- plot_ly(full_data_Johns_Hopkins_University %>% filter(location == kraj),
+               x = ~date,
+               y = ~new_cases,
+               type = 'bar',
+               name = 'new cases')
+fig <- fig %>% add_trace(y = ~new_deaths, name = 'new deaths')
+fig <- fig %>% layout(yaxis = list(title = 'Count'), barmode = 'stack')
+fig
+
+tst <- full_data_Johns_Hopkins_University %>%
+  mutate(wskaznik_smiertelnosci_open = total_deaths/total_cases) %>% 
+  left_join(full_data_Johns_Hopkins_University %>%
+              mutate(date = as.Date(date)+1,
+                     wskaznik_smiertelnosci_close = total_deaths/total_cases),
+            by = c("location", "date")) %>% 
+  left_join(vaccinations_by_manufacturer %>%
+              select(c(location, date)) %>%
+              group_by(location) %>%
+              summarize(first_vacc = min(date)),
+            by = "location") %>% 
+  filter(location == kraj)
+
+# przez cos takiego mozna stwierdzic przystosowanie sie panstwa do sytuacji 
+# (dodac linie odciecia na wysokosci podania pierwszysch szczepionek)
+# fig <- plot_ly(tst,
+#                x = ~date,
+#                y = ~wskaznik_smiertelnosci_open,
+#                type = 'scatter',
+#                mode = 'line')
+# fig
+
+# annotation
+a <- list(text = paste("Pierwsza szczepionka (",min(tst$first_vacc),")"),
+          x = min(tst$first_vacc),
+          y = 1.02,
+          xref = 'x',
+          yref = 'paper',
+          xanchor = 'left',
+          showarrow = FALSE
+)
+# use shapes to create a line
+l <- list(type = line,
+          x0 = min(tst$first_vacc),
+          x1 = min(tst$first_vacc),
+          y0 = 0,
+          y1 = 1,
+          xref = 'x',
+          yref = 'paper',
+          line = list(color = 'black',
+                      width = 0.5)
+)
+fig <- plot_ly(tst,
+               x = ~date,
+               open = ~wskaznik_smiertelnosci_open,
+               close = ~wskaznik_smiertelnosci_close,
+               high = ~wskaznik_smiertelnosci_close,
+               low = ~wskaznik_smiertelnosci_open,
+               type = 'candlestick')
+fig <- fig %>% layout(title = "Zmiana procentowa smiertelnosci (total)",
+                      xaxis = list(rangeslider = list(visible = F)),
+                      annotations = a,
+                      shapes = l)
+fig
+
+
+
+# musi byc takie zlaczenie z uwagi na ogromne braki w informacji o hospitalizacji
 baza <- covid_hospitalizations %>%
   filter(indicator %in% c("Daily hospital occupancy", "Daily ICU occupancy")) %>% 
   tidyr::pivot_wider(names_from = indicator, values_from = value) %>% 
-  right_join(full_data_Johns_Hopkins_University, by = c("entity"="location", "date"))
+  left_join(full_data_Johns_Hopkins_University, by = c("entity"="location", "date"))
 
 baza$`Daily ICU occupancy` %>% summary()
 baza$`Daily hospital occupancy` %>% summary()
@@ -94,18 +174,9 @@ baza %>% colnames()
 # [10] "weekly_cases"             "weekly_deaths"            "biweekly_cases"          
 # [13] "biweekly_deaths"
 
-kraj = "Poland"
-# wszystkie przypadki vs wszystkie zgony (problem z danymi w hospitalizacji)
-fig <- plot_ly(baza %>% filter(entity == kraj),
-               x = ~date,
-               y = ~total_cases,
-               type = 'bar',
-               name = 'total cases')
-fig <- fig %>% add_trace(y = ~total_deaths, name = 'total deaths')
-fig <- fig %>% layout(yaxis = list(title = 'Count'), barmode = 'stack')
-fig
+baza$iso_code %>% unique() # - niewydolnosc mozna policzyc tylko z smiertelnosc/nowe przypadki poniewaz duze braki w danych o hospitalizacji
 
-# hospitalizacje vs smiertelnosc
+# hospitalizacje vs smiertelnosc - malo czytelne w takiej formie
 fig <- plot_ly(baza %>% filter(entity == kraj),
                x = ~date,
                y = ~new_cases,
@@ -117,6 +188,6 @@ fig <- fig %>% add_trace(y = ~new_deaths, name = 'new deaths')
 fig <- fig %>% layout(yaxis = list(title = 'Count'), barmode = 'stack')
 fig
 
-
+# wspolczynnik smierci w oparciu o hospitalizacje
 
 

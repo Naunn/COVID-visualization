@@ -92,6 +92,16 @@ fig <- fig %>% add_trace(y = ~total_deaths, name = 'total deaths')
 fig <- fig %>% layout(yaxis = list(title = 'Count'), barmode = 'stack')
 fig
 
+# kor <- cor.test(filter(full_data_Johns_Hopkins_University, location == kraj)$total_cases,
+#                 filter(full_data_Johns_Hopkins_University, location == kraj)$total_deaths,
+#                 method=c("pearson", "kendall", "spearman"))
+# ifelse(kor$p.value < 0.05,
+#        paste("Korelacja pomiędzy łączną ilością rozpoznanych zachorowań i łączną liczbą śmierci w wyniku choroby jest statystycznie istotna i wynosi:",round(kor$estimate,2)),
+#        paste("Korelacja pomiędzy łączną ilością rozpoznanych zachorowań i łączną liczbą śmierci w wyniku choroby jest statystycznie nieistotna i wynosi:",round(kor$estimate,2)))
+# # nic diwnego ze mocno skorelowane, skoro smiertelnosc to jakis % przypadkow - jedyny wniosek jest taki,
+# # ze smiertelnosc nie maleje, tj. jak bylo na poczatku tak bylo potem - nie wiadomo czy bylo dobrze czy zle, wiemy tylko, ze bez zmian
+
+# ten wykres jest raczej do spekulowania fali zachorowan, widac przyrost w konkretnych miesiacach (nic nowego)
 # analogicznie na nowych przypadkach (teoretycznie, jezeli dobra wydolnosc, to poziom nowych zgonow niezmienna) - malo czytelne
 fig <- plot_ly(full_data_Johns_Hopkins_University %>% filter(location == kraj),
                x = ~date,
@@ -102,11 +112,12 @@ fig <- fig %>% add_trace(y = ~new_deaths, name = 'new deaths')
 fig <- fig %>% layout(yaxis = list(title = 'Count'), barmode = 'stack')
 fig
 
-tst <- full_data_Johns_Hopkins_University %>%
-  mutate(wskaznik_smiertelnosci_open = total_deaths/total_cases) %>% 
+COVID_dead <- full_data_Johns_Hopkins_University %>%
+  mutate(wskaznik_smiertelnosci_total_open = total_deaths/total_cases,
+         wskaznik_smiertelnosci_new = new_deaths/new_cases) %>% 
   left_join(full_data_Johns_Hopkins_University %>%
               mutate(date = as.Date(date)+1,
-                     wskaznik_smiertelnosci_close = total_deaths/total_cases),
+                     wskaznik_smiertelnosci_total_close = total_deaths/total_cases),
             by = c("location", "date")) %>% 
   left_join(vaccinations_by_manufacturer %>%
               select(c(location, date)) %>%
@@ -114,6 +125,24 @@ tst <- full_data_Johns_Hopkins_University %>%
               summarize(first_vacc = min(date)),
             by = "location") %>% 
   filter(location == kraj)
+
+# W pace zrobic zmienne wygladzanie wykresu - najlepiej jako wskaznik suwakowy
+k = 31
+rolling <- zoo::rollmean(x = COVID_dead$wskaznik_smiertelnosci_new,
+                         k = k,
+                         align = "right")
+
+daty <- seq.Date(from = min(COVID_dead$date),
+                 to = max(COVID_dead$date),
+                 length.out = length(rolling))
+
+fig <- plot_ly(x = daty,
+               y = rolling,
+               type = 'scatter',
+               mode = "lines",
+               name = 'wskaznik_smiertelnosci_new')
+fig <- fig %>% layout(yaxis = list(title = "", tickformat = ".2%"))
+fig
 
 # przez cos takiego mozna stwierdzic przystosowanie sie panstwa do sytuacji 
 # (dodac linie odciecia na wysokosci podania pierwszysch szczepionek)
@@ -125,8 +154,10 @@ tst <- full_data_Johns_Hopkins_University %>%
 # fig
 
 # annotation
-a <- list(text = paste("Pierwsza szczepionka (",min(tst$first_vacc),")"),
-          x = min(tst$first_vacc),
+a <- list(text = paste("Pierwsza szczepionka (",if_else(is.na(min(COVID_dead$first_vacc)),
+                                                       as.Date("2999-12-31"), # wymuszone przez if_else()-a
+                                                       min(COVID_dead$first_vacc)),")"),
+          x = if_else(is.na(min(COVID_dead$first_vacc)),as.Date(max(COVID_dead$date))+14,min(COVID_dead$first_vacc)),
           y = 1.02,
           xref = 'x',
           yref = 'paper',
@@ -135,8 +166,8 @@ a <- list(text = paste("Pierwsza szczepionka (",min(tst$first_vacc),")"),
 )
 # use shapes to create a line
 l <- list(type = line,
-          x0 = min(tst$first_vacc),
-          x1 = min(tst$first_vacc),
+          x0 = if_else(is.na(min(COVID_dead$first_vacc)),as.Date(max(COVID_dead$date))+14,min(COVID_dead$first_vacc)),
+          x1 = if_else(is.na(min(COVID_dead$first_vacc)),as.Date(max(COVID_dead$date))+14,min(COVID_dead$first_vacc)),
           y0 = 0,
           y1 = 1,
           xref = 'x',
@@ -144,15 +175,17 @@ l <- list(type = line,
           line = list(color = 'black',
                       width = 0.5)
 )
-fig <- plot_ly(tst,
+fig <- plot_ly(COVID_dead,
                x = ~date,
-               open = ~wskaznik_smiertelnosci_open,
-               close = ~wskaznik_smiertelnosci_close,
-               high = ~wskaznik_smiertelnosci_close,
-               low = ~wskaznik_smiertelnosci_open,
+               open = ~wskaznik_smiertelnosci_total_open,
+               close = ~wskaznik_smiertelnosci_total_close,
+               high = ~wskaznik_smiertelnosci_total_close,
+               low = ~wskaznik_smiertelnosci_total_open,
                type = 'candlestick')
-fig <- fig %>% layout(title = "Zmiana procentowa smiertelnosci (total)",
-                      xaxis = list(rangeslider = list(visible = F)),
+fig <- fig %>% layout(title = paste("Zmiana procentowa smiertelnosci (total) -",kraj),
+                      xaxis = list(rangeslider = list(visible = F),
+                                   range = list(as.Date(min(COVID_dead$date))-7, as.Date(max(COVID_dead$date))+7)),
+                      yaxis = list(tickformat = ".2%"),
                       annotations = a,
                       shapes = l)
 fig

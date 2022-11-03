@@ -101,15 +101,96 @@ fig
 # # nic diwnego ze mocno skorelowane, skoro smiertelnosc to jakis % przypadkow - jedyny wniosek jest taki,
 # # ze smiertelnosc nie maleje, tj. jak bylo na poczatku tak bylo potem - nie wiadomo czy bylo dobrze czy zle, wiemy tylko, ze bez zmian
 
-# ten wykres jest raczej do spekulowania fali zachorowan, widac przyrost w konkretnych miesiacach (nic nowego)
+# mortality <- full_data_Johns_Hopkins_University %>% full_join(excess_mortality, by = c("location", "date")) - nie zadziala, bo hopkins to dane dzienne, a excess dane tygodniowe
+
+wspolna_os <- function(baza1, baza2) { # problem, bo tygodniowe vs dzienne dane
+  max1 <- baza1$date %>% max()
+  min1 <- baza1$date %>% min()
+  
+  max2 <- baza2$date %>% max()
+  min2 <- baza2$date %>% min()
+  
+  if (max1 < max2){
+    new_max <- max1
+  } else {
+    new_max <- max2
+  }
+  
+  # max <- baza2 %>% filter(date <= new_max) %>% max()
+  
+  if (min1 > min2){
+    new_min <- min1
+  } else {
+    new_min <- min2
+  }
+  print(new_min)
+  # min <- baza2 %>% filter(date >= new_min) %>% min()
+  
+  return(c(min, max))
+}
+
+full_data_Johns_Hopkins_University_filtered <- full_data_Johns_Hopkins_University %>% filter(location == kraj)
+excess_mortality_filtered <- excess_mortality %>%  filter(location == kraj)
+min_max <- wspolna_os(full_data_Johns_Hopkins_University_filtered, excess_mortality_filtered)
+
+# ten wykres jest raczej do spekulowania fali zachorowan, widac przyrost w konkretnych miesiacach (nic nowego) - rozwinieto o procent smiertelnosci (w porownaniu do poprzednich lat)
 # analogicznie na nowych przypadkach (teoretycznie, jezeli dobra wydolnosc, to poziom nowych zgonow niezmienna) - malo czytelne
-fig <- plot_ly(full_data_Johns_Hopkins_University %>% filter(location == kraj),
+fig1 <- plot_ly(full_data_Johns_Hopkins_University_filtered %>% filter(date >= min_max[1] & date <= min_max[2]),
                x = ~date,
                y = ~new_cases,
                type = 'bar',
-               name = 'new cases')
-fig <- fig %>% add_trace(y = ~new_deaths, name = 'new deaths')
-fig <- fig %>% layout(yaxis = list(title = 'Count'), barmode = 'stack')
+               name = 'nowe przypadki')
+# fig <- fig %>% add_trace(y = ~new_deaths, name = 'new deaths')
+fig1 <- fig1 %>% layout(xaxis = list(showticklabels = FALSE),
+                        yaxis = list(title = 'Count'),
+                        barmode = 'stack',
+                        annotations = a,
+                        shapes = l)
+
+# We calculate P-scores using the reported deaths data from HMD and WMD and the projected deaths from WMD,
+# as an estimate of expected deaths. The P-score is the percentage difference between the reported number of weekly
+# or monthly deaths in 2020–2022 and the projected number of deaths for the same period based on previous years.
+# - p_proj_all_ages: P-scores using projected baseline for all ages; see note below for the definition of the P-score, how we calculate it, and changes implemented on 20 September 2021,
+# - p_proj_0_14: P-scores using projected baseline for ages 0–14,
+# - p_proj_15_64: P-scores using projected baseline for ages 15–64,
+# - p_proj_65_74: P-scores using projected baseline for ages 65–74,
+# - p_proj_75_84: P-scores using projected baseline for ages 75–84,
+# - p_proj_85p: P-scores using projected baseline for ages 85 and above,
+# - p_scores_all_ages: P-scores using 5-year average baseline for all ages,
+# - p_scores_0_14: P-scores using 5-year average baseline for ages 0–14,
+# - p_scores_15_64: P-scores using 5-year average baseline for ages 15–64,
+# - p_scores_65_74: P-scores using 5-year average baseline for ages 65–74,
+# - p_scores_75_84: P-scores using 5-year average baseline for ages 75–84,
+# - p_scores_85p: P-scores using 5-year average baseline for ages 85 and above.
+# projected baseline - prognozowana wartosc
+# 5-year average baseline - srednia z 5 ostatnich lat
+fig2 <- plot_ly(excess_mortality_filtered %>% filter(date >= min_max[1] & date <= min_max[2]),
+               x = ~date,
+               y = ~p_proj_all_ages/100,
+               type = 'scatter',
+               mode = "lines",
+               name = 'all') %>% 
+  add_trace(y = ~p_proj_0_14/100,
+            name = "0 - 14",
+            mode = "lines") %>% 
+  add_trace(y = ~p_proj_15_64/100,
+            name = "15 - 64",
+            mode = "lines") %>% 
+  add_trace(y = ~p_proj_65_74/100,
+            name = "65 - 74",
+            mode = "lines") %>% 
+  add_trace(y = ~p_proj_75_84/100,
+            name = "75 - 84",
+            mode = "lines") %>% 
+  add_trace(y = ~p_proj_85p/100,
+            name = "85p",
+            mode = "lines")
+fig2 <- fig2 %>% layout(title = paste("Zmiana procentowa smiertelnosci (wzgledem poprzednich lat) -",kraj),
+                        yaxis = list(title = "% wzrostu/spadku umieralności", tickformat = ".0%"),
+                        shapes = l)
+
+# zlaczenie tych wykresow razem da nam ciekawsze spojrzenie na to, kto umieral w tym czasie
+fig <- subplot(fig1, fig2, nrows = 2)
 fig
 
 COVID_dead <- full_data_Johns_Hopkins_University %>%
@@ -126,8 +207,8 @@ COVID_dead <- full_data_Johns_Hopkins_University %>%
             by = "location") %>% 
   filter(location == kraj)
 
-# W pace zrobic zmienne wygladzanie wykresu - najlepiej jako wskaznik suwakowy
-k = 31
+# W apce zrobic zmienna wygladzania wykresu - najlepiej jako wskaznik suwakowy+-
+k = 7 # (minimum 1)
 rolling <- zoo::rollmean(x = COVID_dead$wskaznik_smiertelnosci_new,
                          k = k,
                          align = "right")
@@ -141,22 +222,10 @@ fig <- plot_ly(x = daty,
                type = 'scatter',
                mode = "lines",
                name = 'wskaznik_smiertelnosci_new')
-fig <- fig %>% layout(yaxis = list(title = "", tickformat = ".2%"))
-fig
-
-# przez cos takiego mozna stwierdzic przystosowanie sie panstwa do sytuacji 
-# (dodac linie odciecia na wysokosci podania pierwszysch szczepionek)
-# fig <- plot_ly(tst,
-#                x = ~date,
-#                y = ~wskaznik_smiertelnosci_open,
-#                type = 'scatter',
-#                mode = 'line')
-# fig
-
 # annotation
 a <- list(text = paste("Pierwsza szczepionka (",if_else(is.na(min(COVID_dead$first_vacc)),
-                                                       as.Date("2999-12-31"), # wymuszone przez if_else()-a
-                                                       min(COVID_dead$first_vacc)),")"),
+                                                        as.Date("2999-12-31"), # wymuszone przez if_else()-a
+                                                        min(COVID_dead$first_vacc)),")"),
           x = if_else(is.na(min(COVID_dead$first_vacc)),as.Date(max(COVID_dead$date))+14,min(COVID_dead$first_vacc)),
           y = 1.02,
           xref = 'x',
@@ -175,6 +244,42 @@ l <- list(type = line,
           line = list(color = 'black',
                       width = 0.5)
 )
+fig <- fig %>% layout(yaxis = list(title = "", tickformat = ".2%"),
+                      annotations = a,
+                      shapes = l)
+fig
+
+# przez cos takiego mozna stwierdzic przystosowanie sie panstwa do sytuacji 
+# (dodac linie odciecia na wysokosci podania pierwszysch szczepionek)
+# fig <- plot_ly(tst,
+#                x = ~date,
+#                y = ~wskaznik_smiertelnosci_open,
+#                type = 'scatter',
+#                mode = 'line')
+# fig
+
+# annotation
+# a <- list(text = paste("Pierwsza szczepionka (",if_else(is.na(min(COVID_dead$first_vacc)),
+#                                                        as.Date("2999-12-31"), # wymuszone przez if_else()-a
+#                                                        min(COVID_dead$first_vacc)),")"),
+#           x = if_else(is.na(min(COVID_dead$first_vacc)),as.Date(max(COVID_dead$date))+14,min(COVID_dead$first_vacc)),
+#           y = 1.02,
+#           xref = 'x',
+#           yref = 'paper',
+#           xanchor = 'left',
+#           showarrow = FALSE
+# )
+# # use shapes to create a line
+# l <- list(type = line,
+#           x0 = if_else(is.na(min(COVID_dead$first_vacc)),as.Date(max(COVID_dead$date))+14,min(COVID_dead$first_vacc)),
+#           x1 = if_else(is.na(min(COVID_dead$first_vacc)),as.Date(max(COVID_dead$date))+14,min(COVID_dead$first_vacc)),
+#           y0 = 0,
+#           y1 = 1,
+#           xref = 'x',
+#           yref = 'paper',
+#           line = list(color = 'black',
+#                       width = 0.5)
+# )
 fig <- plot_ly(COVID_dead,
                x = ~date,
                open = ~wskaznik_smiertelnosci_total_open,
@@ -190,37 +295,33 @@ fig <- fig %>% layout(title = paste("Zmiana procentowa smiertelnosci (total) -",
                       shapes = l)
 fig
 
-
-
-# musi byc takie zlaczenie z uwagi na ogromne braki w informacji o hospitalizacji
-baza <- covid_hospitalizations %>%
-  filter(indicator %in% c("Daily hospital occupancy", "Daily ICU occupancy")) %>% 
-  tidyr::pivot_wider(names_from = indicator, values_from = value) %>% 
-  left_join(full_data_Johns_Hopkins_University, by = c("entity"="location", "date"))
-
-baza$`Daily ICU occupancy` %>% summary()
-baza$`Daily hospital occupancy` %>% summary()
-baza %>% colnames()
-# [1] "entity"                   "iso_code"                 "date"                    
-# [4] "Daily ICU occupancy"      "Daily hospital occupancy" "new_cases"               
-# [7] "new_deaths"               "total_cases"              "total_deaths"            
-# [10] "weekly_cases"             "weekly_deaths"            "biweekly_cases"          
-# [13] "biweekly_deaths"
-
-baza$iso_code %>% unique() # - niewydolnosc mozna policzyc tylko z smiertelnosc/nowe przypadki poniewaz duze braki w danych o hospitalizacji
-
-# hospitalizacje vs smiertelnosc - malo czytelne w takiej formie
-fig <- plot_ly(baza %>% filter(entity == kraj),
-               x = ~date,
-               y = ~new_cases,
-               type = 'bar',
-               name = 'new cases')
-fig <- fig %>% add_trace(y = ~coalesce(filter(baza, entity == kraj)$`Daily hospital occupancy`,
-                                       filter(baza, entity == kraj)$`Daily ICU occupancy`), name = 'hospitlization (normal/ICU)')
-fig <- fig %>% add_trace(y = ~new_deaths, name = 'new deaths')
-fig <- fig %>% layout(yaxis = list(title = 'Count'), barmode = 'stack')
-fig
-
-# wspolczynnik smierci w oparciu o hospitalizacje
+# # musi byc takie zlaczenie z uwagi na ogromne braki w informacji o hospitalizacji
+# baza <- covid_hospitalizations %>%
+#   filter(indicator %in% c("Daily hospital occupancy", "Daily ICU occupancy")) %>% 
+#   tidyr::pivot_wider(names_from = indicator, values_from = value) %>% 
+#   left_join(full_data_Johns_Hopkins_University, by = c("entity"="location", "date"))
+# 
+# baza$`Daily ICU occupancy` %>% summary()
+# baza$`Daily hospital occupancy` %>% summary()
+# baza %>% colnames()
+# # [1] "entity"                   "iso_code"                 "date"                    
+# # [4] "Daily ICU occupancy"      "Daily hospital occupancy" "new_cases"               
+# # [7] "new_deaths"               "total_cases"              "total_deaths"            
+# # [10] "weekly_cases"             "weekly_deaths"            "biweekly_cases"          
+# # [13] "biweekly_deaths"
+# 
+# baza$iso_code %>% unique() # - niewydolnosc mozna policzyc tylko z smiertelnosc/nowe przypadki poniewaz duze braki w danych o hospitalizacji
+# 
+# # hospitalizacje vs smiertelnosc - malo czytelne w takiej formie
+# fig <- plot_ly(baza %>% filter(entity == kraj),
+#                x = ~date,
+#                y = ~new_cases,
+#                type = 'bar',
+#                name = 'new cases')
+# fig <- fig %>% add_trace(y = ~coalesce(filter(baza, entity == kraj)$`Daily hospital occupancy`,
+#                                        filter(baza, entity == kraj)$`Daily ICU occupancy`), name = 'hospitlization (normal/ICU)')
+# fig <- fig %>% add_trace(y = ~new_deaths, name = 'new deaths')
+# fig <- fig %>% layout(yaxis = list(title = 'Count'), barmode = 'stack')
+# fig
 
 

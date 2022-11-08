@@ -59,7 +59,7 @@ covid_testing_agg <- covid_testing_all_observations %>%
 
 # short.term.positive.rate - 100 x Liczba nowych potwierdzonych przypadków/liczba testów wykonanych w tygodniu
 
-kraj = "RUS"
+kraj = "POL"
 baza <- covid_testing_agg %>% filter(ISO.code == kraj)
 kor <- cor.test(baza$suma_testow_tyg, baza$Short.term.positive.rate, method=c("pearson", "kendall", "spearman"))
 ifelse(kor$p.value < 0.05,

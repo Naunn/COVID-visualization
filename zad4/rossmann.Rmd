@@ -1,0 +1,150 @@
+---
+title: "rossman"
+author: "Bartosz"
+date: "2022-11-07"
+output: html_document
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(ggplot2) # rysowanie
+library(ggpmisc) # wielomiany
+library(purrr) # map()
+library(tidyr)
+library(lubridate)
+library(plotly)
+```
+
+This R Markdown document is made interactive using Shiny. Unlike the more traditional workflow of creating static reports, you can now create documents that allow your readers to change the assumptions underlying your analysis and see the results immediately. 
+
+To learn more, see [Interactive Documents](http://rmarkdown.rstudio.com/authoring_shiny.html).
+
+```{r dane, include=FALSE}
+lokalalizacja <- getwd()
+rossman <- readxl::read_excel(paste0(lokalalizacja,"/rossmann.xlsx"))
+rossman <- rossman %>% mutate(across(c(6:9), ~ ifelse(.x == "Tak", 1, 0)),
+                              dzien_tyg = wday(dzien_tyg+1, label = TRUE))
+rossman$dzien_tyg <- gsub(x = rossman$dzien_tyg, pattern = "[\\.]",  "")
+rossman$sklep_id <- rossman$sklep_id %>% as.character()
+rossman[c(6:11)] <- sapply(rossman[c(6:11)], as.factor)
+rossman$data <- rossman$data %>% as.Date()
+rossman <- rossman %>% mutate(across(dzien_tyg, factor, levels = c("pon", "wt", "śr", "czw", "pt", "sob", "niedz")) )%>% filter(dzien_tyg != "niedz")
+
+rossman_nest <- rossman %>% 
+  group_by(sklep_id) %>% 
+  nest()
+
+rossman_nest <- rossman_nest %>% 
+  mutate(plot_lm1 = map2(data, sklep_id,
+                     ~ ggplot(data = .x, aes(x=liczba_klientow, y=sprzedaz)) +
+                       stat_poly_line(formula = y ~ poly(x, raw = TRUE)) +
+                       stat_poly_eq(formula = y ~ poly(x, raw = TRUE),
+                                    aes(label = after_stat(eq.label))) +
+                       geom_point()),
+         plot_lm2 = map2(data, sklep_id,
+                         ~ ggplot(data = .x, aes(x=liczba_klientow, y=sprzedaz, color = czy_promocja)) +
+                           stat_poly_line(formula = y ~ poly(x, raw = TRUE)) +
+                           stat_poly_eq(formula = y ~ poly(x, raw = TRUE),
+                                        aes(label = after_stat(eq.label))) +
+                           guides(col = guide_legend(reverse = TRUE)) +
+                           geom_point()),
+         plot_lm3 = map2(data, sklep_id,
+                         ~ ggplot(data = .x %>% filter(dzien_tyg != "niedz"), aes(x=liczba_klientow, y=sprzedaz, color = dzien_tyg)) +
+                           stat_poly_line(formula = y ~ poly(x, raw = TRUE)) +
+                           stat_poly_eq(formula = y ~ poly(x, raw = TRUE),
+                                        aes(label = after_stat(eq.label))) +
+                           geom_point() +
+                           theme(legend.position="none") +
+                           facet_wrap(~dzien_tyg))
+         # plot_lm4 = map2(data, sklep_id,
+         #                 ~ plot_ly(data = .x,
+         #                           x= ~data,
+         #                           y= ~sprzedaz,
+         #                           color = ~dzien_tyg,
+         #                           type = "bar") %>% layout(
+         #                             title = "Sprzedaz na przestrzeni 2014r.") %>% 
+         #                   rangeslider())
+         )
+```
+
+## Dla wybranego sklepu narysować zależność między liczbą klientów, a sprzedażą.
+
+```{r, echo=FALSE, warning=FALSE}
+inputPanel(
+  selectInput("sklep_id", label = "Numer sklepu:",
+              choices = rossman$sklep_id, selected = 1)
+  )
+
+renderPlot(rossman_nest %>% filter(sklep_id == input$sklep_id) %>% .$plot_lm1)
+```
+
+## Zbadać tą zależność uwzględniając promocje.
+
+```{r, echo=FALSE}
+renderPlot(rossman_nest %>% filter(sklep_id == input$sklep_id) %>% .$plot_lm2)
+```
+
+## Zbadać tą zależność liczba klientów - sprzedaż, uwzględniając dzień tygodnia.
+
+```{r, echo=FALSE}
+renderPlot(rossman_nest %>% filter(sklep_id == input$sklep_id) %>% .$plot_lm3)
+```
+
+## Sprawdzić czy zależność wielkości sprzedaży od dnia tygodnia jest lepiej widoczna jeżeli na osi x zamiast liczby klientów umieścimy czas (oś x - Data). ----
+
+```{r, echo=FALSE}
+# reactive({
+#   rossman_nest %>% filter(sklep_id == input$sklep_id) %>% .$plot_lm4
+plotlyOutput("Plot")
+
+rossman_plotly <- reactive({
+  plot_ly(data = rossman %>% filter(sklep_id == input$sklep_id),
+          x= ~data,
+          y= ~sprzedaz,
+          color = ~dzien_tyg,
+          type = "bar") %>%
+    layout(title = "Sprzedaz na przestrzeni 2014r.") %>% 
+    rangeslider()
+  })
+
+output$Plot <- plotly::renderPlotly({
+  rossman_plotly()
+  })
+```
+
+## (*) Wybrać pięć sklepów i porównać sprzedaż w tych sklepach w kolejnych dniach (oś x - czas).
+
+```{r, echo=FALSE, warning=FALSE}
+inputPanel(
+  selectInput("sklep_id2", label = "Numer sklepu do porównania:",
+              choices = rossman$sklep_id, selected = 1),
+  selectInput("sklep_id3", label = "Numer sklepu do porównania:",
+              choices = rossman$sklep_id, selected = 1),
+  selectInput("sklep_id4", label = "Numer sklepu do porównania:",
+              choices = rossman$sklep_id, selected = 1),
+  selectInput("sklep_id5", label = "Numer sklepu do porównania:",
+              choices = rossman$sklep_id, selected = 1)
+  )
+
+plotlyOutput("Plot5")
+
+rossman_plotly5 <- reactive({
+  plot_ly(rossman %>% filter(sklep_id %in% c(input$sklep_id,
+                                             input$sklep_id2,
+                                             input$sklep_id3,
+                                             input$sklep_id4,
+                                             input$sklep_id5)),
+          x= ~data,
+          y= ~sprzedaz,
+          color = ~sklep_id,
+          type = "bar") %>%
+    layout(title = "Porwnanie losowych 5-ciu sklepów") %>% 
+    rangeslider()
+  })
+
+output$Plot5 <- plotly::renderPlotly({
+  rossman_plotly5()
+  })
+```

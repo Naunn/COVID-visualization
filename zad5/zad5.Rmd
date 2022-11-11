@@ -1,0 +1,374 @@
+---
+title: "zad5"
+author: "Bartosz"
+date: "2022-11-11"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(ggplot2)
+library(scatterpie) # do rysowania wykresow kolowych jako punktow
+library(plotly)
+library(e1071) # Bayes
+library(titanic)
+library(lubridate)
+```
+
+# Titanic
+```{r, include=FALSE}
+df <- titanic_train %>% select(Survived, Pclass, Sex)
+df$Pclass <- df$Pclass %>% as.character()
+```
+
+## 1. Zwizualizować szanse na przeżycie katastrofy w zależności od klasy, którą podróżował pasażer, od płci, oraz od obu tych cech jednocześnie.
+```{r, echo=FALSE}
+# Odsetek uratowanych według klasy
+surv_by_class <- df %>%
+  select(!Sex) %>% 
+  group_by(Pclass) %>% 
+  # summarise(Prob_surv = sum(Survived)/length(Pclass)) %>% 
+  transmute(Prob_surv = sum(Survived)/length(Pclass),
+            Pclass = factor(Pclass, levels= c("3","2","1"))) %>% 
+  ungroup() %>% 
+  distinct() %>% 
+  arrange(Pclass)
+  
+ggplot(surv_by_class, aes(x= Pclass, y= Prob_surv, fill= Prob_surv)) +
+  geom_bar(stat = "identity") + 
+  geom_col(colour = "black") +
+  coord_flip() +
+  # scale_x_reverse() +
+  scale_y_continuous(labels= scales::percent) +
+  ggtitle("Odsetek przeżyć według klasy") +
+  xlab("Klasa pasażerska") +
+  ylab("") +
+  scale_fill_viridis_c(begin= 0.7,
+                       direction= -1) +
+  geom_text(aes(label= paste0(round(Prob_surv*100,2),"%")), hjust = 1.15, size= 5) +
+  theme(legend.position="none")
+```
+
+```{r, echo=FALSE}
+# Szanse na przeżycie według klasy (Naiwny Bayes)
+nb_class <- naiveBayes(formula = Survived~Pclass, data = df)
+bayes_class <- nb_class$tables %>%
+  as.data.frame() %>% 
+  mutate(Pclass.Y = if_else(Pclass.Y == "1", "Live", "Dead"))
+
+ggplot(bayes_class, aes(x= Pclass.Pclass, y= Pclass.Freq, fill= Pclass.Y)) +
+  geom_bar(stat = "identity", position=position_dodge()) +
+  # coord_flip() +
+  # scale_x_reverse() +
+  scale_y_continuous(labels= scales::percent, name="") +
+  labs(title="Szanse na przeżycie w podziale na klasę \n (Twierdzenie Bayes'a)",
+       x ="Klasa pasażerska", y = "", fill = "") +
+  geom_text(aes(label= paste0(round(Pclass.Freq*100,2),"%")),
+            size= 5,
+            position = position_dodge(0.9),
+            vjust = 1.5)
+```
+
+```{r, echo=FALSE}
+# Odsetek uratowanych według płci
+surv_by_sex <- df %>%
+  select(!Pclass) %>% 
+  group_by(Sex) %>% 
+  transmute(Prob_surv = sum(Survived)/length(Sex),
+            Sex = factor(Sex, levels= c("male","female"))) %>% 
+  ungroup() %>% 
+  distinct()
+
+ggplot(surv_by_sex, aes(x= Sex, y= Prob_surv, fill= Prob_surv)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  scale_y_continuous(labels= scales::percent) +
+  labs(title="Odsetek przeżyć według płci",
+       x ="", y = "") +
+  scale_fill_viridis_c(begin= 0.7,
+                       direction= -1) +
+  geom_text(aes(label= paste0(round(Prob_surv*100,2),"%")), hjust = 1.15, size= 5) +
+  theme(legend.position="none")
+```
+
+```{r, echo=FALSE}
+# Szanse na przeżycie według płci (Naiwny Bayes)
+nb_sex <- naiveBayes(formula = Survived~Sex, data = df)
+bayes_sex <- nb_sex$tables %>%
+  as.data.frame() %>% 
+  mutate(Sex.Y = if_else(Sex.Y == "1", "Live", "Dead"))
+
+ggplot(bayes_sex, aes(x= Sex.Sex, y= Sex.Freq, fill= Sex.Y)) +
+  geom_bar(stat = "identity", position=position_dodge()) +
+  # coord_flip() +
+  # scale_x_reverse() +
+  scale_y_continuous(labels= scales::percent, name="") +
+  labs(title="Szanse na przeżycie w podziale na płeć \n (Twierdzenie Bayes'a)",
+       x ="Płeć pasażera", y = "", fill = "") +
+  geom_text(aes(label= paste0(round(Sex.Freq*100,2),"%")),
+            size= 5,
+            position = position_dodge(0.9),
+            vjust = 1.5)
+```
+
+```{r, echo=FALSE, warning=FALSE}
+# Szanse na przeżycie katastrofy w zależności od klasy i płci
+# Matematycznie, wydaje mi się, że jest to trudne do osiągnięcia. Zostaje prosta wizualizacja
+options(dplyr.summarise.inform = FALSE)
+df_count <- df %>%
+  group_by(Survived, Pclass, Sex) %>% 
+  summarise(n= n()) %>% 
+  ungroup() %>% 
+  mutate(Survived = if_else(Survived == 1, "Live", "Dead"),
+         Pclass = if_else(Pclass == '1', 1L, if_else(Pclass == '2', 2L, 3L)),
+         Sex = if_else(Sex == 'female', 1L, 0L)) %>% 
+  tidyr::pivot_wider(names_from = Survived, values_from = n) %>% 
+  mutate(All = Dead+Live,
+         All_r = All/sum(All))
+
+ggplot() +
+  geom_scatterpie(aes(x= Pclass, y= Sex, r= All_r),
+                  data= df_count,
+                  cols= c("Dead", "Live")) +
+  coord_equal() +
+  scale_x_discrete(limit = c(1,2,3)) +
+  scale_y_discrete(limit = c(1,0),
+                   labels = c("female", "male")) +
+  labs(title="Statystyki umieralności w podziale na płeć i klasy",
+       y ="", x = "Klasa pasażerska", fill = "")
+```
+
+## 2. A co z zasadą najpierw kobiety i dzieci?
+### (*) Zastanowić się czy wizualizacja wzglęgem liczby osób, które przeżyły jest tu adekwatna?
+```{r, echo=FALSE}
+df_age_count <- titanic_train %>%
+  select(Survived, Pclass, Sex, Age) %>%
+  group_by(Survived, Pclass, Sex) %>% 
+  # Uzupełnienie braków średnią z danej kategorii
+  mutate(Age= coalesce(Age, round(mean(Age, na.rm = TRUE)))) %>%
+  ungroup() %>% 
+  mutate(Survived = if_else(Survived == 1, "Live", "Dead"))
+
+plot_ly(df_age_count,
+        x= ~Pclass,
+        y= ~Sex,
+        z= ~Age,
+        color= ~Survived,
+        colors= c('Red', 'Green'),
+        hoverinfo = 'text',
+        text = ~paste('</br> Pclass: ', Pclass,
+                      '</br> Sex: ', Sex,
+                      '</br> Age: ', Age)) %>% 
+  add_markers() %>% 
+  layout(title = "Wykres umieralności w podziale na płeć, klasy i wiek",
+         scene = list(aspectmode = "manual", aspectratio = list(x=.5, y=.5, z=2)),
+         legend = list(orientation = 'h'))
+```
+
+# Udemy
+```{r, include=FALSE}
+udemy <- read.csv("./Entry Level Project Sheet - 3.1-data-sheet-udemy-courses-web-development.csv",
+         sep = ",") %>% 
+  mutate(Date = as.Date(Date))
+```
+
+## Zobrazować zmianę ilości proponowanych kursów w kolejnych latach w poszczególnych tematykach.
+```{r, echo=FALSE}
+udemy_interest <- udemy %>% 
+  select(Date, subject) %>% 
+  transmute(Year = format(Date, "%Y"),
+            subject = subject) %>%
+  group_by(Year, subject) %>% 
+  mutate(n = n()) %>% 
+  ungroup() %>% 
+  distinct()
+
+ggplot(udemy_interest, aes(x= Year, y= n, group= subject)) +
+  geom_line(aes(color= subject)) +
+  geom_point(aes(color= subject)) +
+  labs(title="Ilości kursów \n (w podziale na tematykę)", y ="") +
+  theme(legend.position = c(0.2, 0.79),
+        legend.title = element_blank(),
+        aspect.ratio=5/7)
+```
+
+## Jak w kolejnych latach zmieniała się proporcja ilości kurów proponowanych na różnych poziomach zaawansowania w poszczególnych tematykach?
+```{r, echo=FALSE}
+udemy_interest_level <- udemy %>% 
+  select(Date, subject, level) %>% 
+  transmute(Year = format(Date, "%Y"),
+            subject = subject,
+            level = level) %>%
+  group_by(Year, subject, level) %>% 
+  mutate(n = n()) %>% 
+  ungroup() %>% 
+  distinct()
+
+ggplot(udemy_interest_level, aes(x= Year, y= n, fill= level)) +
+  geom_bar(stat = "identity", position= "dodge") +
+  labs(title= "Ilości kursów \n (w podziale na tematykę i poziom)",
+       y= "",
+       x= "") +
+  geom_text(aes(label= n),
+            size= 3,
+            position = position_dodge(0.9),
+            vjust = -.25) +
+  facet_wrap(~subject,nrow=4) +
+  theme(legend.position="none") +
+  ylim(0,250)
+```
+
+## Jak się zmieniała w kolejnych latach cena kursu w zależności od tematyki (i/lub) stopnia zaawansowania?
+```{r, echo=FALSE}
+udemy_interest_price <- udemy %>% 
+  select(Date, subject, level, price) %>% 
+  transmute(Year = format(Date, "%Y"),
+            subject = subject,
+            level = level,
+            price = price) %>%
+  group_by(Year, subject, level) %>% 
+  mutate(mean_price = round(mean(price),2)) %>% 
+  select(!price) %>% 
+  ungroup() %>% 
+  distinct()
+
+ggplot(udemy_interest_price, aes(x= Year, y= mean_price, fill= level)) +
+  geom_bar(stat = "identity", position= "dodge") +
+  labs(title= "Średnia cena kursów \n (w podziale na tematykę i poziom)",
+       y= "",
+       x= "") +
+  geom_text(aes(label= paste0(mean_price,"$")),
+            size= 2,
+            position = position_dodge(0.9),
+            vjust = -.25) +
+  facet_wrap(~subject,nrow=4) +
+  theme(legend.position="none") +
+  ylim(0,120)
+```
+
+# Rossman
+```{r, include=FALSE}
+rossman <- readxl::read_excel("./rossmann.xlsx") %>%
+  mutate(across(c(6:9), ~ ifelse(.x == "Tak", 1, 0)),
+         dzien_tyg = wday(dzien_tyg+1, label = TRUE))
+rossman$dzien_tyg <- gsub(x = rossman$dzien_tyg, pattern = "[\\.]",  "")
+rossman$sklep_id <- rossman$sklep_id %>% as.character()
+rossman[c(6:11)] <- sapply(rossman[c(6:11)], as.factor)
+rossman$data <- rossman$data %>% as.Date()
+# nadajemy hierachie dniami tygodnia
+rossman <- rossman %>% mutate(across(dzien_tyg, factor, levels = c("pon", "wt", "śr", "czw", "pt", "sob", "niedz"))) %>% filter(dzien_tyg != "niedz")
+
+```
+
+## Narysować wykresy pokazujące liczbę sklepów każdego z typów: a,b,c,... i rodzaj asortymentu: podstawowy, rozszerzony i ekstra.
+### Polecenie wykonać zarówno za pomocą polecenia *geom_bar* jak i *geom_col*.
+```{r, include=FALSE}
+sklepy <- rossman %>%
+  select(sklep_typ, sklep_asort) %>% 
+  group_by(sklep_typ, sklep_asort) %>% 
+  summarize(n = n()) %>% 
+  ungroup()
+```
+
+```{r, echo=TRUE}
+ggplot(sklepy, aes(x= sklep_typ, y= n, fill= sklep_asort)) +
+  geom_bar(stat = "identity", position= "dodge") +
+  labs(title= "Liczba sklepów w podziale na typ i asortyment",
+       y= "",
+       x= "Typ sklepu",
+       fill='Asortyment') +
+  geom_text(aes(label= n),
+            size= 3,
+            position = position_dodge(0.9),
+            vjust = -1)
+```
+
+```{r, echo=TRUE}
+ggplot(sklepy, aes(x= sklep_typ, y= n, fill= sklep_asort)) +
+  geom_col(position= "dodge") +
+  labs(title= "Liczba sklepów w podziale na typ i asortyment",
+       y= "",
+       x= "Typ sklepu",
+       fill='Asortyment') +
+  geom_text(aes(label= n),
+            size= 3,
+            position = position_dodge(0.9),
+            vjust = -1)
+```
+
+# Udzialy
+```{r, include=FALSE}
+udzialy <- tibble(
+  sklep = c("A","B","C","D","E"), 
+  udzial = c(.17,.19,.18,.22,.24),
+  rok = 2022)
+```
+
+```{r}
+# Mamy 5 wiodących firm A, B, C, D, E , F produkcyjnych działających w tym samym sektorze. Ich udział w rynku jest odpowiednio 
+# A - 17%
+# B - 19%
+# C - 18%
+# D - 22%
+# E - 23%
+```
+
+## Zobrazować podane dane na wykresach słupkowych, słupkowych zgrupowanych, kołowych. Która z wizualizacji jest najtrafniejsza?
+
+### Wykres słupkowy
+```{r, echo=FALSE}
+ggplot(udzialy, aes(x= sklep, y= udzial, fill= udzial)) +
+  geom_col() +
+  labs(title= "Udziały sklepów w sektorze sprzedaży",
+       y= "Udział",
+       x= "Sklep") +
+  scale_fill_viridis_c(begin= 0.4,
+                       end= 0.7,
+                       direction= 1) +
+  geom_text(aes(label= paste0(round(udzial*100),"%")),
+            size= 5,
+            position = position_dodge(0.9),
+            vjust = 1.5) +
+  theme(legend.position="none")
+```
+
+### Wykres słupkowy zgrupowany
+```{r, echo=FALSE}
+ggplot(udzialy, aes(x= rok, y= udzial, fill= sklep)) +
+  geom_bar(stat = "identity", position= "dodge") +
+  labs(title= "Udziały sklepów w sektorze sprzedaży",
+       y= "Udział",
+       x= "") +
+  geom_text(aes(label= paste0(round(udzial*100),"%")),
+            size= 5,
+            position = position_dodge(0.9),
+            vjust = 1.5) +
+  scale_x_discrete(limit = c(2022))
+```
+
+### Wykres kołowy
+```{r, echo=FALSE}
+ggplot(udzialy, aes(x= rok, y= udzial, fill= sklep)) +
+  geom_bar(stat = "identity", width=1,  color="black") +
+  labs(title= "Udziały sklepów w sektorze sprzedaży",
+       y= "",
+       x= "") +
+  geom_text(aes(label= paste0(round(udzial*100),"%")),
+            position = position_stack(vjust = 0.5),
+            size= 7,
+            color = "white") +
+  theme_void() +
+  coord_polar("y") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+
+
+
+
+
+
+
+

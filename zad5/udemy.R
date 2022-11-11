@@ -1,4 +1,5 @@
 library(dplyr)
+library(ggplot2)
 
 udemy <- read.csv("zad5/Entry Level Project Sheet - 3.1-data-sheet-udemy-courses-web-development.csv",
          sep = ",") %>% 
@@ -58,9 +59,10 @@ ggplot(udemy_interest_level, aes(x= Year, y= n, fill= level)) +
   geom_text(aes(label= n),
             size= 3,
             position = position_dodge(0.9),
-            vjust = -1.25) +
+            vjust = -.25) +
   facet_wrap(~subject,nrow=4) +
-  theme(legend.position="none")
+  theme(legend.position="none") +
+  ylim(0,250)
   
 # Jak się zmieniała w kolejnych latach cena kursu w zależności od tematyki (i/lub) stopnia zaawansowania?
 udemy_interest_price <- udemy %>% 
@@ -81,11 +83,12 @@ ggplot(udemy_interest_price, aes(x= Year, y= mean_price, fill= level)) +
        y= "",
        x= "") +
   geom_text(aes(label= paste0(mean_price,"$")),
-            size= 3,
+            size= 2,
             position = position_dodge(0.9),
-            vjust = -1.25) +
+            vjust = -.25) +
   facet_wrap(~subject,nrow=4) +
-  theme(legend.position="none")
+  theme(legend.position="none") +
+  ylim(0,120)
 
 
 

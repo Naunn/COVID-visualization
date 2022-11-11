@@ -33,7 +33,7 @@ df <- titanic_train %>% select(Survived, Pclass, Sex)
 df$Pclass <- df$Pclass %>% as.character()
 df %>% glimpse()
 
-# Odsetek śmierci według klasy
+# Odsetek uratowanych według klasy
 surv_by_class <- df %>%
   select(!Sex) %>% 
   group_by(Pclass) %>% 
@@ -76,7 +76,7 @@ ggplot(bayes_class, aes(x= Pclass.Pclass, y= Pclass.Freq, fill= Pclass.Y)) +
             position = position_dodge(0.9),
             vjust = 1.5)
 
-# Odsetek śmierci od płci
+# Odsetek uratowanych według płci
 surv_by_sex <- df %>%
   select(!Pclass) %>% 
   group_by(Sex) %>% 
@@ -159,7 +159,8 @@ plot_ly(df_age_count,
                       '</br> Age: ', Age)) %>% 
   add_markers() %>% 
   layout(title = "Wykres umieralności w podziale na płeć, klasy i wiek",
-         scene = list(aspectmode = "manual", aspectratio = list(x=.5, y=.5, z=2)))
+         scene = list(aspectmode = "manual", aspectratio = list(x=.5, y=.5, z=2)),
+         legend = list(orientation = 'h'))
 # (*) Zastanowić się czy wizualizacja wzglęgem liczby osób, które przeżyły jest tu adekwatna? ----
 # Wykorzystałem to do "2."
 

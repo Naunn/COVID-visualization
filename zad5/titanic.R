@@ -3,7 +3,6 @@ library(ggplot2)
 library(scatterpie) # do rysowania wykresow kolowych jako punktow
 library(plotly)
 library(e1071) # Bayes
-
 library(titanic)
 # knitr::kable(head(titanic_train))
 
@@ -51,7 +50,7 @@ ggplot(surv_by_class, aes(x= Pclass, y= Prob_surv, fill= Prob_surv)) +
   coord_flip() +
   # scale_x_reverse() +
   scale_y_continuous(labels= scales::percent) +
-  ggtitle("Odsetek śmierci według klasy") +
+  ggtitle("Odsetek przeżyć według klasy") +
   xlab("Klasa pasażerska") +
   ylab("") +
   scale_fill_viridis_c(begin= 0.7,
@@ -90,7 +89,7 @@ ggplot(surv_by_sex, aes(x= Sex, y= Prob_surv, fill= Prob_surv)) +
   geom_bar(stat = "identity") +
   coord_flip() +
   scale_y_continuous(labels= scales::percent) +
-  labs(title="Odsetek śmierci według płci",
+  labs(title="Odsetek przeżyć według płci",
        x ="", y = "") +
   scale_fill_viridis_c(begin= 0.7,
                        direction= -1) +

@@ -29,3 +29,5 @@ fig
 # zamiast shiny, to w dasha - proba, a jak nie, to wpisywanianie panstwa na pale (wybieranie z listy pod mapą)
 
 # dorobić mapke rozprzestrzeniania sie covidu wraz ze sliderem https://plotly.com/r/cumulative-animations/
+
+# Mapka bedzie tylko pogladowa, a input bedzie z wyboru

@@ -152,7 +152,7 @@ fig2 <- plot_ly(midwest_agg,
                 name = "% below poverty line",
                 mode = "markers") %>% 
   layout(yaxis = list(tickformat = ".0%"))
-fig <- subplot(fig1, fig2, nrows = 2)
+fig <- 
 fig
 # Lepiej ...
 # Tytuł

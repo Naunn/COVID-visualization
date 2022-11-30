@@ -9,6 +9,8 @@ source("dane.R")
 library(dplyr)
 library(plotly)
 library(tidyr)
+library(quantmod)
+library(knitr)
 
 ## Analiza testowania
 covid_testing_all_observations %>%
@@ -71,28 +73,26 @@ fig1 <- plot_ly(baza,
               y = ~suma_testow_tyg,
               name = ~ISO.code,
               type = 'scatter',
-              mode = 'lines+markers')
+              mode = 'lines+markers',
+              hovertemplate = paste("Suma testów (tyg): %{y}<extra></extra>")) %>% 
+  layout(xaxis = list(showticklabels = FALSE)) %>% 
+  animation_opts(transition = 0)
 fig2 <- plot_ly(baza,
                 x = ~week,
                 y = ~Short.term.positive.rate,
                 name = ~ISO.code,
                 type = 'scatter',
-                mode = 'lines+markers')
-fig <- subplot(fig1, fig2, nrows = 2)
+                mode = 'lines+markers',
+                hovertemplate = paste("Testy pozytywne: %{y}<extra></extra>")) %>% 
+  layout(yaxis = list(tickformat = ".2%")) %>% 
+  animation_opts(transition = 0)
+fig <- subplot(fig1, fig2, nrows = 2) %>%
+  layout(title = kraj,
+         showlegend = FALSE,
+         hovermode = "x unified")
 fig
 # pomysl: wyswietlanie porownania lacznej ilosc testow w tygodniu + % pozytywnych wynikow
 # + wniosek z testu korelacji tych zmiennych (wszystko dla wskazanego panstwa)
-
-
-
-
-
-
-
-
-
-
-
 
 
 

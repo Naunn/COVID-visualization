@@ -2,6 +2,7 @@ source("dane.R")
 
 library(plotly)
 library(tidyverse)
+library(knitr)
 
 # Przygotowanie danych =======================================================================================
 # Agregacja przypadków do tygodni (jeżeli NA, to srednia z daty przed i daty po)
@@ -83,9 +84,9 @@ df <- data.frame(
   f = c(1,2,3)
 )
 
-knitr::kable(df)
+kable(df)
 
-fig <- df %>%
+df %>%
   plot_ly(
     x = ~x,
     y = ~y,
@@ -95,9 +96,7 @@ fig <- df %>%
     showlegend = F
   )
 
-fig
-
-knitr::kable(baza)
+kable(baza)
 
 plot_ly(baza,
         x = ~week,
@@ -108,17 +107,33 @@ plot_ly(baza,
         frame = ~week,
         hovertemplate = paste("Testy pozytywne: %{y}<extra></extra>")) %>% 
   layout(yaxis = list(tickformat = ".2%"))
+# Problem, może brak ciągłości w kolumnie week?
+kable(baza$week) # to są dane tygodniowe, także ..., ale spróbujmy
 
 plot_ly(baza %>% cbind(seq.Date(as.Date("2020-03-16"), by = "day", length.out = 119)) %>% rename(ID = ...7),
-        x = ~ID,
+        x = ~week,
         y = ~Short.term.positive.rate,
         name = ~ISO.code,
         type = 'scatter',
         mode = 'lines+markers',
-        frame = ~week,
+        frame = ~ID,
         hovertemplate = paste("Testy pozytywne: %{y}<extra></extra>")) %>% 
   layout(yaxis = list(tickformat = ".2%"))
 
+# Nie dałoby nic ...
+# Zatem, dodajmy ID tradycyjne, tj. 1, 2, ...
+
+plot_ly(baza %>% cbind(seq(1,nrow(baza),1)) %>% rename(ID = ...7),
+        x = ~week,
+        y = ~Short.term.positive.rate,
+        name = ~ISO.code,
+        type = 'scatter',
+        mode = 'lines+markers',
+        frame = ~ID,
+        hovertemplate = paste("Testy pozytywne: %{y}<extra></extra>")) %>% 
+  layout(yaxis = list(tickformat = ".2%"))
+
+# Hmmm, podejrzenie pada na daty
 plot_ly(baza %>% cbind(seq(1,nrow(baza),1)) %>% rename(ID = ...7),
         x = ~ID,
         y = ~Short.term.positive.rate,
@@ -129,35 +144,128 @@ plot_ly(baza %>% cbind(seq(1,nrow(baza),1)) %>% rename(ID = ...7),
         hovertemplate = paste("Testy pozytywne: %{y}<extra></extra>")) %>% 
   layout(yaxis = list(tickformat = ".2%"))
 
-baza_id <- baza %>% cbind(seq(1,nrow(baza),1)) %>% rename(ID = ...7)
-
-fig <- plot_ly(baza_id,
-               x = ~ID,
-               y = ~Short.term.positive.rate,
-               name = ~ISO.code, # najpewniej jest tak, że kazdy punkt to oddzielne rysowanie
-               type = 'scatter',
-               mode = 'lines+markers',
-               frame = ~week,
-               hovertemplate = paste("Testy pozytywne: %{y}<extra></extra>")) %>% 
-  layout(yaxis = list(tickformat = ".2%"))
-fig
-
-plot_ly(baza_id,
-        x = ~week,
+# Działa? No tak średnio bym powiedział. Ewidentnie ma problem z datami, to może ...
+plot_ly(baza %>% cbind(seq(1,nrow(baza),1)) %>% rename(ID = ...7) %>% mutate(week_str=as.character(week)),
+        x = ~ID,
         y = ~Short.term.positive.rate,
-        name = ~ISO.code, # najpewniej jest tak, że kazdy punkt to oddzielne rysowanie
+        name = ~ISO.code,
         type = 'scatter',
         mode = 'lines+markers',
         frame = ~ID,
         hovertemplate = paste("Testy pozytywne: %{y}<extra></extra>")) %>% 
   layout(yaxis = list(tickformat = ".2%"))
 
-# https://www.rdocumentation.org/packages/plotly/versions/4.10.0/topics/animation_opts
-fig %>% animation_opts(frame = 100, 
-                       transition = 0, 
-                       redraw = TRUE) %>%
-  animation_slider(currentvalue = list(prefix = "week ")
-  )
+# Sukces? Technicznie tak, ale nie o to nam chodziło. Dlaczego tak jest? (pytanie do grupy)
+
+# Poprawmy to
+accumulate_by <- function(dat, var) {
+  var <- lazyeval::f_eval(var, dat)
+  lvls <- plotly:::getLevels(var)
+  dats <- lapply(seq_along(lvls), function(x) {
+    cbind(dat[var %in% lvls[seq(1, x)], ], frame = lvls[[x]])
+  })
+  dplyr::bind_rows(dats)
+}
+
+baza_acc <- baza %>%
+  cbind(seq(1,nrow(baza),1)) %>%
+  rename(ID = ...7) %>%
+  accumulate_by(~ID)
+
+baza_acc %>% head(15) %>% kable()
+baza_acc %>% nrow()
+
+plot_ly(baza_acc,
+        x = ~ID,
+        y = ~Short.term.positive.rate,
+        name = ~ISO.code,
+        type = 'scatter',
+        mode = 'lines+markers',
+        frame = ~frame,
+        hovertemplate = paste("Testy pozytywne: %{y}<extra></extra>")) %>% 
+  layout(yaxis = list(tickformat = ".2%"))
+
+# Czas na upiększanie
+plot_ly(baza_acc,
+        x = ~ID,
+        y = ~Short.term.positive.rate,
+        name = ~ISO.code,
+        type = 'scatter',
+        mode = 'lines+markers',
+        frame = ~frame,
+        hovertemplate = paste("Testy pozytywne: %{y}<extra></extra>")) %>% 
+  layout(yaxis = list(tickformat = ".2%"), showlegend = FALSE) %>% 
+  animation_opts(frame = 10, 
+                 transition = 10,
+                 easing = "linear",
+                 redraw = FALSE) %>% 
+  animation_slider(currentvalue = list(prefix = "week "))
+
+# Dlaczego prefix nie dziala?
+
+baza_acc <- baza %>%
+  cbind(seq(1,nrow(baza),1)) %>%
+  rename(ID = ...7) %>%
+  accumulate_by(~week)
+
+baza_acc %>% head(15) %>% kable()
+baza_acc %>% nrow()
+
+plot_ly(baza_acc,
+        x = ~ID,
+        y = ~Short.term.positive.rate,
+        name = ~ISO.code,
+        type = 'scatter',
+        mode = 'lines+markers',
+        frame = ~frame,
+        hovertemplate = paste("Testy pozytywne: %{y}<extra></extra>")) %>% 
+  layout(yaxis = list(tickformat = ".2%"), showlegend = FALSE) %>% 
+  animation_opts(frame = 10, 
+                 transition = 10,
+                 easing = "linear",
+                 redraw = TRUE) %>% 
+  animation_slider(currentvalue = list(prefix = "week "))
+
+# Zatem spróbujmy podwójny plot
+fig1 <- plot_ly(baza_acc,
+                x = ~ID,
+                y = ~suma_testow_tyg,
+                name = ~ISO.code,
+                type = 'scatter',
+                mode = 'lines+markers',
+                frame = ~frame,
+                hovertemplate = paste("Suma testów (tyg): %{y}<extra></extra>")) %>% 
+  layout(yaxis = list(showlegend = FALSE)) %>% 
+  animation_slider(currentvalue = list(prefix = "week "))
+fig2 <- plot_ly(baza_acc,
+                x = ~ID,
+                y = ~Short.term.positive.rate,
+                type = 'scatter',
+                mode = 'lines+markers',
+                frame = ~frame,
+                hovertemplate = paste("Testy pozytywne: %{y}<extra></extra>")) %>% 
+  layout(yaxis = list(tickformat = ".2%"), showlegend = FALSE) %>% 
+  animation_slider(currentvalue = list(prefix = "week "))
+fig <- subplot(fig1, fig2, nrows = 2) %>%
+  layout(title = kraj,
+         showlegend = FALSE) %>% 
+  animation_opts(frame = 10, 
+                 transition = 10,
+                 easing = "linear",
+                 redraw = TRUE)
+fig
+
+# A kiedy wykorzystać nieskumulowany wykres? Może mapa?
+# mapa zmieniajaca wielkosc kuli zakazeni vs wyzdrowiali
+
+
+
+
+
+
+
+
+
 
 
 # Budnopis ===================================================================================================

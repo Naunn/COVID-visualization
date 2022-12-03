@@ -1,3 +1,12 @@
+---
+title: "bigmac"
+author: "Bartosz"
+date: "2022-12-02"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
 library(dplyr)
 library(knitr)
 library(ggplot2)
@@ -7,29 +16,12 @@ library(gganimate)
 library(RColorBrewer)
 library(ggflags)
 library(countrycode) # for ISO2 country codes
+```
 
 # Zadanie - Przy pomocy animacji zwizualizować dane dotyczące ceny kanapki w wybranych krajach oraz średniej ceny kanapki.
 
-## Dane ================================================================================================================
-# https://www.kaggle.com/datasets/mrmorj/big-mac-index-data
-bigmac <- read.csv2("zad7/BigmacPrice_t.csv", na.strings = "")
-bigmac %>% head(10) %>% kable()
-
-bigmac %>% glimpse()
-# Rows: 1,946
-# Columns: 6
-# $ date          <chr> "01.04.2000", "01.04.2000", "01.04.2000", "01.04.2000", "01.04.2000~
-# $ currency_code <chr> "ARS", "AUD", "BRL", "GBP", "CAD", "CLP", "CNY", NA, "DKK", "EUR", ~
-# $ name          <chr> "Argentina", "Australia", "Brazil", "Britain", "Canada", "Chile", "~
-# $ local_price   <dbl> 2.50, 2.59, 2.95, 1.90, 2.85, 1260.00, 9.90, 54.37, 24.75, 2.56, 10~
-# $ dollar_ex     <int> 1, 1, 1, 1, 1, 514, 8, 39, 8, 1, 7, 279, 7945, 4, 106, 3, 9, 2, 4, ~
-# $ dollar_price  <chr> "$2,5", "$2,59", "$2,95", "$1,9", "$2,85", "$2,45", "$1,24", "$1,39~
-
-# local_price - cena Big Maca w lokalnej walucie
-# dollar_ex - jednostki waluty lokalnej na dolara (kurs dolara)
-# dollar_price - cena Big Maca w dolarach
-  
-## Przygotowanie Danych ================================================================================================
+```{r dane, include=F}
+bigmac <- read.csv2("BigmacPrice_t.csv", na.strings = "")
 
 # Uzupełnienie currency_code
 bigmac$currency_code %>% table() %>% kable()
@@ -81,9 +73,9 @@ bigmac_clean <- bigmac_clean %>%
   ungroup() %>% 
   # reszte wypelnil pierwsza (kolejna) napotkana wartoscia
   fill(dollar_price, .direction = "up")
+```
 
-## Wizualizacja ========================================================================================================
-# Britain, Brazil, United States, South Korea, Russia, South Africa, China, Poland
+```{r wizualizacja, echo=F}
 # Wszystkie, gdzie min. 30 pozycji
 df <- bigmac_clean %>%
   # filter(name %in% c("Britain",
@@ -99,8 +91,6 @@ df <- bigmac_clean %>%
   ungroup() %>%
   filter(count >= 35 & name != "Euro area") %>%
   mutate(iso2c = tolower(countrycode(name, "country.name", "iso2c")))
- 
-df %>% select(name) %>% table() %>% kable()
 
 animation <- ggplot(df,  aes(x = dollar_price,
                              y = name,
@@ -114,3 +104,5 @@ animation <- ggplot(df,  aes(x = dollar_price,
   labs(title = "{frame_time}", x = "Big Mac (local price) dollar price", y = "")
 
 animate(animation, duration = 30, fps = 10)
+```
+

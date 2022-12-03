@@ -1,10 +1,33 @@
-source("dane.R")
-
 library(plotly)
 library(tidyverse)
 library(knitr)
+library(countrycode) # for ISO3 country codes
 
-# Przygotowanie danych =======================================================================================
+### Dane =====================================================================================================
+covid_testing_all_observations <- read.csv(
+  paste0(lokalizacja,"/data/testing/covid-testing-all-observations.csv"),
+  header = TRUE,
+  sep = ",")
+covid_testing_all_observations$Date <- as.Date(covid_testing_all_observations$Date)
+covid_testing_all_observations$X7.day.smoothed.daily.change <- as.double(covid_testing_all_observations$X7.day.smoothed.daily.change)
+# Rows: 106,788
+# Columns: 14
+# $ Entity                                        <chr> "Afghanistan - te~
+# $ ISO.code                                      <chr> "AFG", "AFG", "AF~
+# $ Date                                          <date> 2022-01-29, 2022~
+# $ Source.URL                                    <chr> "http://www.emro.~
+# $ Source.label                                  <chr> "WHO Regional Off~
+# $ Notes                                         <chr> "", "", "", "", "~
+# $ Cumulative.total                              <dbl> 853003, NA, NA, N~
+# $ Daily.change.in.cumulative.total              <dbl> NA, NA, NA, NA, N~
+# $ Cumulative.total.per.thousand                 <dbl> 21.272, NA, NA, N~
+# $ Daily.change.in.cumulative.total.per.thousand <dbl> NA, NA, NA, NA, N~
+# $ X7.day.smoothed.daily.change                  <dbl> NA, NA, NA, NA, N~
+# $ X7.day.smoothed.daily.change.per.thousand     <dbl> NA, NA, NA, NA, N~
+# $ Short.term.positive.rate                      <dbl> NA, NA, NA, NA, N~
+# $ Short.term.tests.per.case                     <dbl> NA, NA, NA, NA, N~
+
+
 # Agregacja przypadków do tygodni (jeżeli NA, to srednia z daty przed i daty po)
 covid_testing_all_observations$week <- lubridate::ceiling_date(covid_testing_all_observations$Date,
                                                                "week",
@@ -157,7 +180,9 @@ plot_ly(baza %>% cbind(seq(1,nrow(baza),1)) %>% rename(ID = ...7) %>% mutate(wee
 
 # Sukces? Technicznie tak, ale nie o to nam chodziło. Dlaczego tak jest? (pytanie do grupy)
 
-# Poprawmy to
+## Animacja - wykres skumulowany (film) ======================================================================
+# https://plotly.com/ggplot2/cumulative-animations/
+
 accumulate_by <- function(dat, var) {
   var <- lazyeval::f_eval(var, dat)
   lvls <- plotly:::getLevels(var)
@@ -256,7 +281,94 @@ fig <- subplot(fig1, fig2, nrows = 2) %>%
 fig
 
 # A kiedy wykorzystać nieskumulowany wykres? Może mapa?
-# mapa zmieniajaca wielkosc kuli zakazeni vs wyzdrowiali
+
+## Animacja - wykres przejściowy (pokaz slajdów) =============================================================
+# https://plotly.com/r/animations/
+
+### Dane =====================================================================================================
+deaths_ts <- read.csv("https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_deaths_global.csv") %>% 
+  select(!c(Province.State, Lat, Long)) %>% 
+  aggregate(.~Country.Region, FUN = sum) %>% 
+  pivot_longer(!Country.Region, names_to = "date", values_to = "deaths") %>% 
+  mutate(date = as.POSIXct(reduce2(c('X', '\\.'), c('', '-'),  .init = date, str_replace_all), format = "%m-%d-%y"))
+
+recovered_ts <- read.csv("https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_recovered_global.csv") %>% 
+  select(!c(Province.State, Lat, Long)) %>% 
+  aggregate(.~Country.Region, FUN = sum) %>% 
+  pivot_longer(!Country.Region, names_to = "date", values_to = "recovery") %>% 
+  mutate(date = str_replace(date, "X", "")) %>% 
+  mutate(date = as.POSIXct(reduce2(c('X', '\\.'), c('', '-'),  .init = date, str_replace_all), format = "%m-%d-%y"))
+
+df_ts <- deaths_ts %>%
+  left_join(recovered_ts, by = c("Country.Region", "date")) %>% 
+  mutate(iso3c = countrycode(Country.Region, origin = "country.name", destination = "iso3c")) %>% 
+  drop_na() %>% 
+  group_by(iso3c) %>% 
+  mutate(id = 1:n()) %>% # zbędne, ale zostawię jako dobry trik
+  ungroup()
+
+df_ts %>% glimpse()
+# Rows: 203,970
+# Columns: 6
+# Groups: iso3c [195]
+# $ Country.Region <chr> "Afghanistan", "Afghanistan", "Afghanistan", "Afghanistan", "…
+# $ date           <dttm> 2020-01-22, 2020-01-23, 2020-01-24, 2020-01-25, 2020-01-26, …
+# $ deaths         <int> 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0…
+# $ recovery       <int> 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0…
+# $ iso3c          <chr> "AFG", "AFG", "AFG", "AFG", "AFG", "AFG", "AFG", "AFG", "AFG"…
+# $ id             <int> 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18…
+
+## "Pokaz slajdów" ===========================================================================================
+# tst <- df_ts %>% filter(Country.Region %in% c("Poland","France")) %>% filter(date >= as.Date("2021-08-01") & date <= as.Date("2021-08-04"))
+d_vs_r <- df_ts %>%
+  filter(Country.Region %in% c("Poland", "France", "Germany", "Italy", "Czechia")) %>% 
+  filter(date >= as.Date("2020-04-01") & date <= as.Date("2021-08-01"))
+
+plot_ly(data = d_vs_r,
+        x = ~Country.Region,
+        y = ~deaths,
+        name = "deaths",
+        frame = ~date,
+        marker = list(color = "red"),
+        type = 'bar',
+        # text = ~deaths,
+        # textposition = 'top',
+        hovertemplate = paste("Deaths: %{y}<extra></extra>")) %>% 
+  add_trace(y = ~recovery,
+            name = 'recovery',
+            marker = list(color = "green"),
+            # text = ~recovery,
+            # textposition = 'top',
+            hovertemplate = paste("Recoveries: %{y}<extra></extra>")) %>% 
+  layout(title = "deaths vs recovery",
+         xaxis = list(title = "Country"),
+         yaxis = list(title = ""),
+         showlegend = FALSE) %>% 
+  animation_opts(frame = 100, 
+                 transition = 100,
+                 easing = "linear",
+                 redraw = TRUE) %>% 
+  animation_slider(currentvalue = list(prefix = "date "))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -395,4 +507,17 @@ fig <- fig %>% animation_slider(
 
 fig
 
+x <- c('Product A', 'Product B', 'Product C')
+y <- c(20, 14, 23)
+text <- c('27% market share', '24% market share', '19% market share')
+data <- data.frame(x, y, text)
 
+fig <- plot_ly(data, x = ~x, y = ~y, type = 'bar',
+               text = y, textposition = 'up',
+               marker = list(color = 'rgb(158,202,225)',
+                             line = list(color = 'rgb(8,48,107)', width = 1.5)))
+fig <- fig %>% layout(title = "January 2013 Sales Report",
+                      xaxis = list(title = ""),
+                      yaxis = list(title = ""))
+
+fig

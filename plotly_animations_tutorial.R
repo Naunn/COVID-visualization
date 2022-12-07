@@ -4,10 +4,9 @@ library(knitr)
 library(countrycode) # for ISO3 country codes
 
 ### Dane =====================================================================================================
-covid_testing_all_observations <- read.csv(
-  paste0(lokalizacja,"/data/testing/covid-testing-all-observations.csv"),
-  header = TRUE,
-  sep = ",")
+covid_testing_all_observations <- read.csv("data/testing/covid-testing-all-observations.csv",
+                                           header = TRUE,
+                                           sep = ",")
 covid_testing_all_observations$Date <- as.Date(covid_testing_all_observations$Date)
 covid_testing_all_observations$X7.day.smoothed.daily.change <- as.double(covid_testing_all_observations$X7.day.smoothed.daily.change)
 # Rows: 106,788
@@ -39,6 +38,7 @@ covid_testing_count <- covid_testing_all_observations %>%
   select(week, ISO.code, Cumulative.total) %>%
   group_by(ISO.code, week) %>%
   summarize(sum = sum(Cumulative.total, na.rm = TRUE)) %>%
+  ungroup() %>% 
   filter(sum > 0) %>%
   .$ISO.code %>%
   table() %>%
@@ -58,6 +58,7 @@ covid_testing_agg <- covid_testing_all_observations %>%
             cumulative_per_week = sum(Cumulative.total, na.rm = TRUE),
             Short.term.positive.rate = round(mean(Short.term.positive.rate, na.rm = TRUE),4) %>%
               format(9999, scientific = FALSE)) %>% # Usuniecie zapisu naukowego, tj. z "e"
+  ungroup() %>% 
   # jeszcze trzeba usunac "NaN'-y ze sredniej
   filter(cumulative_per_week > 0) %>% 
   inner_join(covid_testing_count %>% filter(Freq > 90), by = c("ISO.code" = ".")) %>% 
@@ -133,7 +134,9 @@ plot_ly(baza,
 # Problem, może brak ciągłości w kolumnie week?
 kable(baza$week) # to są dane tygodniowe, także ..., ale spróbujmy
 
-plot_ly(baza %>% cbind(seq.Date(as.Date("2020-03-16"), by = "day", length.out = 119)) %>% rename(ID = ...7),
+plot_ly(baza %>%
+          cbind(seq.Date(as.Date("2020-03-16"), by = "day", length.out = 119)) %>%
+          rename(ID = `seq.Date(as.Date("2020-03-16"), by = "day", length.out = 119)`),
         x = ~week,
         y = ~Short.term.positive.rate,
         name = ~ISO.code,
@@ -146,7 +149,9 @@ plot_ly(baza %>% cbind(seq.Date(as.Date("2020-03-16"), by = "day", length.out = 
 # Nie dałoby nic ...
 # Zatem, dodajmy ID tradycyjne, tj. 1, 2, ...
 
-plot_ly(baza %>% cbind(seq(1,nrow(baza),1)) %>% rename(ID = ...7),
+plot_ly(baza %>%
+          cbind(seq(1,nrow(baza),1)) %>%
+          rename(ID = `seq(1, nrow(baza), 1)`),
         x = ~week,
         y = ~Short.term.positive.rate,
         name = ~ISO.code,
@@ -157,7 +162,9 @@ plot_ly(baza %>% cbind(seq(1,nrow(baza),1)) %>% rename(ID = ...7),
   layout(yaxis = list(tickformat = ".2%"))
 
 # Hmmm, podejrzenie pada na daty
-plot_ly(baza %>% cbind(seq(1,nrow(baza),1)) %>% rename(ID = ...7),
+plot_ly(baza %>%
+          cbind(seq(1,nrow(baza),1)) %>%
+          rename(ID = `seq(1, nrow(baza), 1)`),
         x = ~ID,
         y = ~Short.term.positive.rate,
         name = ~ISO.code,
@@ -168,13 +175,16 @@ plot_ly(baza %>% cbind(seq(1,nrow(baza),1)) %>% rename(ID = ...7),
   layout(yaxis = list(tickformat = ".2%"))
 
 # Działa? No tak średnio bym powiedział. Ewidentnie ma problem z datami, to może ...
-plot_ly(baza %>% cbind(seq(1,nrow(baza),1)) %>% rename(ID = ...7) %>% mutate(week_str=as.character(week)),
+plot_ly(baza %>%
+          cbind(seq(1,nrow(baza),1)) %>%
+          rename(ID = `seq(1, nrow(baza), 1)`) %>%
+          mutate(week_str=as.character(week)),
         x = ~ID,
         y = ~Short.term.positive.rate,
         name = ~ISO.code,
         type = 'scatter',
         mode = 'lines+markers',
-        frame = ~ID,
+        frame = ~week_str,
         hovertemplate = paste("Testy pozytywne: %{y}<extra></extra>")) %>% 
   layout(yaxis = list(tickformat = ".2%"))
 
@@ -194,11 +204,11 @@ accumulate_by <- function(dat, var) {
 
 baza_acc <- baza %>%
   cbind(seq(1,nrow(baza),1)) %>%
-  rename(ID = ...7) %>%
+  rename(ID = `seq(1, nrow(baza), 1)`) %>%
   accumulate_by(~ID)
 
 baza_acc %>% head(15) %>% kable()
-baza_acc %>% nrow()
+baza_acc %>% nrow() # 7140 to sporo, nawet znajoma wartość: https://www.mathsisfun.com/numbers/sigma-calculator.html
 
 plot_ly(baza_acc,
         x = ~ID,
@@ -228,16 +238,16 @@ plot_ly(baza_acc,
 
 # Dlaczego prefix nie dziala?
 
-baza_acc <- baza %>%
+baza_acc_v2 <- baza %>%
   cbind(seq(1,nrow(baza),1)) %>%
-  rename(ID = ...7) %>%
+  rename(ID = `seq(1, nrow(baza), 1)`) %>%
   accumulate_by(~week)
 
 baza_acc %>% head(15) %>% kable()
 baza_acc %>% nrow()
 
-plot_ly(baza_acc,
-        x = ~ID,
+plot_ly(baza_acc_v2,
+        x = ~ID, # ID jest nam nadal potrzebny dla przejrzystości osi x-ów
         y = ~Short.term.positive.rate,
         name = ~ISO.code,
         type = 'scatter',
@@ -252,7 +262,7 @@ plot_ly(baza_acc,
   animation_slider(currentvalue = list(prefix = "week "))
 
 # Zatem spróbujmy podwójny plot
-fig1 <- plot_ly(baza_acc,
+fig1 <- plot_ly(baza_acc_v2,
                 x = ~ID,
                 y = ~suma_testow_tyg,
                 name = ~ISO.code,
@@ -262,7 +272,7 @@ fig1 <- plot_ly(baza_acc,
                 hovertemplate = paste("Suma testów (tyg): %{y}<extra></extra>")) %>% 
   layout(yaxis = list(showlegend = FALSE)) %>% 
   animation_slider(currentvalue = list(prefix = "week "))
-fig2 <- plot_ly(baza_acc,
+fig2 <- plot_ly(baza_acc_v2,
                 x = ~ID,
                 y = ~Short.term.positive.rate,
                 type = 'scatter',
@@ -280,7 +290,9 @@ fig <- subplot(fig1, fig2, nrows = 2) %>%
                  redraw = TRUE)
 fig
 
-# A kiedy wykorzystać nieskumulowany wykres? Może mapa?
+# SUKCES!
+
+# A kiedy wykorzystać nieskumulowany wykres? Może zmieniające się słupki?
 
 ## Animacja - wykres przejściowy (pokaz slajdów) =============================================================
 # https://plotly.com/r/animations/
@@ -324,6 +336,8 @@ d_vs_r <- df_ts %>%
   filter(Country.Region %in% c("Poland", "France", "Germany", "Italy", "Czechia")) %>% 
   filter(date >= as.Date("2020-04-01") & date <= as.Date("2021-08-01"))
 
+# Nie dodajemy labelek z wartościami, ponieważ ich animacja działa tak, że wartości,
+# pojawiają się w lewym górnym rogu i szybują na swoje miejsce, co przy dużej ilości przejść jest mylące
 plot_ly(data = d_vs_r,
         x = ~Country.Region,
         y = ~deaths,

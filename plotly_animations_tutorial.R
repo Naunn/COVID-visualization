@@ -4,11 +4,16 @@ library(knitr)
 library(countrycode) # for ISO3 country codes
 
 ### Dane =====================================================================================================
-covid_testing_all_observations <- read.csv("data/testing/covid-testing-all-observations.csv",
-                                           header = TRUE,
-                                           sep = ",")
-covid_testing_all_observations$Date <- as.Date(covid_testing_all_observations$Date)
-covid_testing_all_observations$X7.day.smoothed.daily.change <- as.double(covid_testing_all_observations$X7.day.smoothed.daily.change)
+covid_testing_all_observations <-
+  read.csv(
+    "data/testing/covid-testing-all-observations.csv",
+    header = TRUE,
+    sep = ","
+  )
+covid_testing_all_observations$Date <-
+  as.Date(covid_testing_all_observations$Date)
+covid_testing_all_observations$X7.day.smoothed.daily.change <-
+  as.double(covid_testing_all_observations$X7.day.smoothed.daily.change)
 # Rows: 106,788
 # Columns: 14
 # $ Entity                                        <chr> "Afghanistan - te~
@@ -28,17 +33,20 @@ covid_testing_all_observations$X7.day.smoothed.daily.change <- as.double(covid_t
 
 
 # Agregacja przypadków do tygodni (jeżeli NA, to srednia z daty przed i daty po)
-covid_testing_all_observations$week <- lubridate::ceiling_date(covid_testing_all_observations$Date,
-                                                               "week",
-                                                               week_start = getOption("lubridate.week.start", 1),
-                                                               change_on_boundary = TRUE)
+covid_testing_all_observations$week <-
+  lubridate::ceiling_date(
+    covid_testing_all_observations$Date,
+    "week",
+    week_start = getOption("lubridate.week.start", 1),
+    change_on_boundary = TRUE
+  )
 
 # Podglad ilosci danych/tygodni (niezerowych)
 covid_testing_count <- covid_testing_all_observations %>%
   select(week, ISO.code, Cumulative.total) %>%
   group_by(ISO.code, week) %>%
   summarize(sum = sum(Cumulative.total, na.rm = TRUE)) %>%
-  ungroup() %>% 
+  ungroup() %>%
   filter(sum > 0) %>%
   .$ISO.code %>%
   table() %>%
@@ -46,24 +54,31 @@ covid_testing_count <- covid_testing_all_observations %>%
 
 # Uspójnienie osi (mozna teraz łatwo rysować wartosci)
 covid_testing_agg <- covid_testing_all_observations %>%
-  select(week,
-         ISO.code,
-         X7.day.smoothed.daily.change,
-         X7.day.smoothed.daily.change.per.thousand,
-         Cumulative.total,
-         Short.term.positive.rate) %>%
+  select(
+    week,
+    ISO.code,
+    X7.day.smoothed.daily.change,
+    X7.day.smoothed.daily.change.per.thousand,
+    Cumulative.total,
+    Short.term.positive.rate
+  ) %>%
   group_by(ISO.code, week) %>%
-  summarize(suma_testow_tyg = sum(X7.day.smoothed.daily.change, na.rm = TRUE),
-            avg_test_tyg_1000 = round(mean(X7.day.smoothed.daily.change.per.thousand, na.rm = TRUE),4),
-            cumulative_per_week = sum(Cumulative.total, na.rm = TRUE),
-            Short.term.positive.rate = round(mean(Short.term.positive.rate, na.rm = TRUE),4) %>%
-              format(9999, scientific = FALSE)) %>% # Usuniecie zapisu naukowego, tj. z "e"
-  ungroup() %>% 
+  summarize(
+    suma_testow_tyg = sum(X7.day.smoothed.daily.change, na.rm = TRUE),
+    avg_test_tyg_1000 = round(
+      mean(X7.day.smoothed.daily.change.per.thousand, na.rm = TRUE),
+      4
+    ),
+    cumulative_per_week = sum(Cumulative.total, na.rm = TRUE),
+    Short.term.positive.rate = round(mean(Short.term.positive.rate, na.rm = TRUE), 4) %>%
+      format(9999, scientific = FALSE)
+  ) %>% # Usuniecie zapisu naukowego, tj. z "e"
+  ungroup() %>%
   # jeszcze trzeba usunac "NaN'-y ze sredniej
-  filter(cumulative_per_week > 0) %>% 
-  inner_join(covid_testing_count %>% filter(Freq > 90), by = c("ISO.code" = ".")) %>% 
-  select(!Freq) %>% 
-  mutate(Short.term.positive.rate = as.numeric(Short.term.positive.rate)) %>% 
+  filter(cumulative_per_week > 0) %>%
+  inner_join(covid_testing_count %>% filter(Freq > 90), by = c("ISO.code" = ".")) %>%
+  select(!Freq) %>%
+  mutate(Short.term.positive.rate = as.numeric(Short.term.positive.rate)) %>%
   replace(is.na(.), 0)
 
 # short.term.positive.rate - 100 x Liczba nowych potwierdzonych przypadków/liczba testów wykonanych w tygodniu
@@ -73,23 +88,27 @@ covid_testing_agg <- covid_testing_all_observations %>%
 kraj = "POL"
 baza <- covid_testing_agg %>% filter(ISO.code == kraj)
 
-fig1 <- plot_ly(baza,
-                x = ~week,
-                y = ~suma_testow_tyg,
-                name = ~ISO.code,
-                type = 'scatter',
-                mode = 'lines+markers',
-                hovertemplate = paste("Suma testów (tyg): %{y}<extra></extra>")) %>% 
-  layout(xaxis = list(showticklabels = FALSE)) %>% 
+fig1 <- plot_ly(
+  baza,
+  x = ~ week,
+  y = ~ suma_testow_tyg,
+  name = ~ ISO.code,
+  type = 'scatter',
+  mode = 'lines+markers',
+  hovertemplate = paste("Suma testów (tyg): %{y}<extra></extra>")
+) %>%
+  layout(xaxis = list(showticklabels = FALSE)) %>%
   animation_opts(transition = 0)
-fig2 <- plot_ly(baza,
-                x = ~week,
-                y = ~Short.term.positive.rate,
-                name = ~ISO.code,
-                type = 'scatter',
-                mode = 'lines+markers',
-                hovertemplate = paste("Testy pozytywne: %{y}<extra></extra>")) %>% 
-  layout(yaxis = list(tickformat = ".2%")) %>% 
+fig2 <- plot_ly(
+  baza,
+  x = ~ week,
+  y = ~ Short.term.positive.rate,
+  name = ~ ISO.code,
+  type = 'scatter',
+  mode = 'lines+markers',
+  hovertemplate = paste("Testy pozytywne: %{y}<extra></extra>")
+) %>%
+  layout(yaxis = list(tickformat = ".2%")) %>%
   animation_opts(transition = 0)
 fig <- subplot(fig1, fig2, nrows = 2) %>%
   layout(title = kraj,
@@ -102,19 +121,17 @@ fig
 
 # FRAME - klatka (w kazdej klatce, musi byc zachowane kilka obrazow)
 
-df <- data.frame(
-  x = c(1,2,1), 
-  y = c(1,2,1), 
-  f = c(1,2,3)
-)
+df <- data.frame(x = c(1, 2, 1),
+                 y = c(1, 2, 1),
+                 f = c(1, 2, 3))
 
 kable(df)
 
 df %>%
   plot_ly(
-    x = ~x,
-    y = ~y,
-    frame = ~f,
+    x = ~ x,
+    y = ~ y,
+    frame = ~ f,
     type = 'scatter',
     mode = 'markers',
     showlegend = F
@@ -122,70 +139,82 @@ df %>%
 
 kable(baza)
 
-plot_ly(baza,
-        x = ~week,
-        y = ~Short.term.positive.rate,
-        name = ~ISO.code,
-        type = 'scatter',
-        mode = 'lines+markers',
-        frame = ~week,
-        hovertemplate = paste("Testy pozytywne: %{y}<extra></extra>")) %>% 
+plot_ly(
+  baza,
+  x = ~ week,
+  y = ~ Short.term.positive.rate,
+  name = ~ ISO.code,
+  type = 'scatter',
+  mode = 'lines+markers',
+  frame = ~ week,
+  hovertemplate = paste("Testy pozytywne: %{y}<extra></extra>")
+) %>%
   layout(yaxis = list(tickformat = ".2%"))
 # Problem, może brak ciągłości w kolumnie week?
 kable(baza$week) # to są dane tygodniowe, także ..., ale spróbujmy
 
-plot_ly(baza %>%
-          cbind(seq.Date(as.Date("2020-03-16"), by = "day", length.out = 119)) %>%
-          rename(ID = `seq.Date(as.Date("2020-03-16"), by = "day", length.out = 119)`),
-        x = ~week,
-        y = ~Short.term.positive.rate,
-        name = ~ISO.code,
-        type = 'scatter',
-        mode = 'lines+markers',
-        frame = ~ID,
-        hovertemplate = paste("Testy pozytywne: %{y}<extra></extra>")) %>% 
+plot_ly(
+  baza %>%
+    cbind(seq.Date(
+      as.Date("2020-03-16"), by = "day", length.out = 119
+    )) %>%
+    rename(ID = `seq.Date(as.Date("2020-03-16"), by = "day", length.out = 119)`),
+  x = ~ week,
+  y = ~ Short.term.positive.rate,
+  name = ~ ISO.code,
+  type = 'scatter',
+  mode = 'lines+markers',
+  frame = ~ ID,
+  hovertemplate = paste("Testy pozytywne: %{y}<extra></extra>")
+) %>%
   layout(yaxis = list(tickformat = ".2%"))
 
 # Nie dałoby nic ...
 # Zatem, dodajmy ID tradycyjne, tj. 1, 2, ...
 
-plot_ly(baza %>%
-          cbind(seq(1,nrow(baza),1)) %>%
-          rename(ID = `seq(1, nrow(baza), 1)`),
-        x = ~week,
-        y = ~Short.term.positive.rate,
-        name = ~ISO.code,
-        type = 'scatter',
-        mode = 'lines+markers',
-        frame = ~ID,
-        hovertemplate = paste("Testy pozytywne: %{y}<extra></extra>")) %>% 
+plot_ly(
+  baza %>%
+    cbind(seq(1, nrow(baza), 1)) %>%
+    rename(ID = `seq(1, nrow(baza), 1)`),
+  x = ~ week,
+  y = ~ Short.term.positive.rate,
+  name = ~ ISO.code,
+  type = 'scatter',
+  mode = 'lines+markers',
+  frame = ~ ID,
+  hovertemplate = paste("Testy pozytywne: %{y}<extra></extra>")
+) %>%
   layout(yaxis = list(tickformat = ".2%"))
 
 # Hmmm, podejrzenie pada na daty
-plot_ly(baza %>%
-          cbind(seq(1,nrow(baza),1)) %>%
-          rename(ID = `seq(1, nrow(baza), 1)`),
-        x = ~ID,
-        y = ~Short.term.positive.rate,
-        name = ~ISO.code,
-        type = 'scatter',
-        mode = 'lines+markers',
-        frame = ~week,
-        hovertemplate = paste("Testy pozytywne: %{y}<extra></extra>")) %>% 
+plot_ly(
+  baza %>%
+    cbind(seq(1, nrow(baza), 1)) %>%
+    rename(ID = `seq(1, nrow(baza), 1)`),
+  x = ~ ID,
+  y = ~ Short.term.positive.rate,
+  name = ~ ISO.code,
+  type = 'scatter',
+  mode = 'lines+markers',
+  frame = ~ week,
+  hovertemplate = paste("Testy pozytywne: %{y}<extra></extra>")
+) %>%
   layout(yaxis = list(tickformat = ".2%"))
 
 # Działa? No tak średnio bym powiedział. Ewidentnie ma problem z datami, to może ...
-plot_ly(baza %>%
-          cbind(seq(1,nrow(baza),1)) %>%
-          rename(ID = `seq(1, nrow(baza), 1)`) %>%
-          mutate(week_str=as.character(week)),
-        x = ~ID,
-        y = ~Short.term.positive.rate,
-        name = ~ISO.code,
-        type = 'scatter',
-        mode = 'lines+markers',
-        frame = ~week_str,
-        hovertemplate = paste("Testy pozytywne: %{y}<extra></extra>")) %>% 
+plot_ly(
+  baza %>%
+    cbind(seq(1, nrow(baza), 1)) %>%
+    rename(ID = `seq(1, nrow(baza), 1)`) %>%
+    mutate(week_str = as.character(week)),
+  x = ~ ID,
+  y = ~ Short.term.positive.rate,
+  name = ~ ISO.code,
+  type = 'scatter',
+  mode = 'lines+markers',
+  frame = ~ week_str,
+  hovertemplate = paste("Testy pozytywne: %{y}<extra></extra>")
+) %>%
   layout(yaxis = list(tickformat = ".2%"))
 
 # Sukces? Technicznie tak, ale nie o to nam chodziło. Dlaczego tak jest? (pytanie do grupy)
@@ -197,97 +226,114 @@ accumulate_by <- function(dat, var) {
   var <- lazyeval::f_eval(var, dat)
   lvls <- plotly:::getLevels(var)
   dats <- lapply(seq_along(lvls), function(x) {
-    cbind(dat[var %in% lvls[seq(1, x)], ], frame = lvls[[x]])
+    cbind(dat[var %in% lvls[seq(1, x)],], frame = lvls[[x]])
   })
   dplyr::bind_rows(dats)
 }
 
 baza_acc <- baza %>%
-  cbind(seq(1,nrow(baza),1)) %>%
+  cbind(seq(1, nrow(baza), 1)) %>%
   rename(ID = `seq(1, nrow(baza), 1)`) %>%
-  accumulate_by(~ID)
+  accumulate_by( ~ ID)
 
 baza_acc %>% head(15) %>% kable()
 baza_acc %>% nrow() # 7140 to sporo, nawet znajoma wartość: https://www.mathsisfun.com/numbers/sigma-calculator.html
 
-plot_ly(baza_acc,
-        x = ~ID,
-        y = ~Short.term.positive.rate,
-        name = ~ISO.code,
-        type = 'scatter',
-        mode = 'lines+markers',
-        frame = ~frame,
-        hovertemplate = paste("Testy pozytywne: %{y}<extra></extra>")) %>% 
+plot_ly(
+  baza_acc,
+  x = ~ ID,
+  y = ~ Short.term.positive.rate,
+  name = ~ ISO.code,
+  type = 'scatter',
+  mode = 'lines+markers',
+  frame = ~ frame,
+  hovertemplate = paste("Testy pozytywne: %{y}<extra></extra>")
+) %>%
   layout(yaxis = list(tickformat = ".2%"))
 
 # Czas na upiększanie
-plot_ly(baza_acc,
-        x = ~ID,
-        y = ~Short.term.positive.rate,
-        name = ~ISO.code,
-        type = 'scatter',
-        mode = 'lines+markers',
-        frame = ~frame,
-        hovertemplate = paste("Testy pozytywne: %{y}<extra></extra>")) %>% 
-  layout(yaxis = list(tickformat = ".2%"), showlegend = FALSE) %>% 
-  animation_opts(frame = 10, 
-                 transition = 10,
-                 easing = "linear",
-                 redraw = FALSE) %>% 
+plot_ly(
+  baza_acc,
+  x = ~ ID,
+  y = ~ Short.term.positive.rate,
+  name = ~ ISO.code,
+  type = 'scatter',
+  mode = 'lines+markers',
+  frame = ~ frame,
+  hovertemplate = paste("Testy pozytywne: %{y}<extra></extra>")
+) %>%
+  layout(yaxis = list(tickformat = ".2%"), showlegend = FALSE) %>%
+  animation_opts(
+    frame = 10,
+    transition = 10,
+    easing = "linear",
+    redraw = FALSE
+  ) %>%
   animation_slider(currentvalue = list(prefix = "week "))
 
 # Dlaczego prefix nie dziala?
 
 baza_acc_v2 <- baza %>%
-  cbind(seq(1,nrow(baza),1)) %>%
+  cbind(seq(1, nrow(baza), 1)) %>%
   rename(ID = `seq(1, nrow(baza), 1)`) %>%
-  accumulate_by(~week)
+  accumulate_by( ~ week)
 
 baza_acc %>% head(15) %>% kable()
 baza_acc %>% nrow()
 
-plot_ly(baza_acc_v2,
-        x = ~ID, # ID jest nam nadal potrzebny dla przejrzystości osi x-ów
-        y = ~Short.term.positive.rate,
-        name = ~ISO.code,
-        type = 'scatter',
-        mode = 'lines+markers',
-        frame = ~frame,
-        hovertemplate = paste("Testy pozytywne: %{y}<extra></extra>")) %>% 
-  layout(yaxis = list(tickformat = ".2%"), showlegend = FALSE) %>% 
-  animation_opts(frame = 10, 
-                 transition = 10,
-                 easing = "linear",
-                 redraw = TRUE) %>% 
+plot_ly(
+  baza_acc_v2,
+  x = ~ ID,
+  # ID jest nam nadal potrzebny dla przejrzystości osi x-ów
+  y = ~ Short.term.positive.rate,
+  name = ~ ISO.code,
+  type = 'scatter',
+  mode = 'lines+markers',
+  frame = ~ frame,
+  hovertemplate = paste("Testy pozytywne: %{y}<extra></extra>")
+) %>%
+  layout(yaxis = list(tickformat = ".2%"), showlegend = FALSE) %>%
+  animation_opts(
+    frame = 10,
+    transition = 10,
+    easing = "linear",
+    redraw = TRUE
+  ) %>%
   animation_slider(currentvalue = list(prefix = "week "))
 
 # Zatem spróbujmy podwójny plot
-fig1 <- plot_ly(baza_acc_v2,
-                x = ~ID,
-                y = ~suma_testow_tyg,
-                name = ~ISO.code,
-                type = 'scatter',
-                mode = 'lines+markers',
-                frame = ~frame,
-                hovertemplate = paste("Suma testów (tyg): %{y}<extra></extra>")) %>% 
-  layout(yaxis = list(showlegend = FALSE)) %>% 
+fig1 <- plot_ly(
+  baza_acc_v2,
+  x = ~ ID,
+  y = ~ suma_testow_tyg,
+  name = ~ ISO.code,
+  type = 'scatter',
+  mode = 'lines+markers',
+  frame = ~ frame,
+  hovertemplate = paste("Suma testów (tyg): %{y}<extra></extra>")
+) %>%
+  layout(yaxis = list(showlegend = FALSE)) %>%
   animation_slider(currentvalue = list(prefix = "week "))
-fig2 <- plot_ly(baza_acc_v2,
-                x = ~ID,
-                y = ~Short.term.positive.rate,
-                type = 'scatter',
-                mode = 'lines+markers',
-                frame = ~frame,
-                hovertemplate = paste("Testy pozytywne: %{y}<extra></extra>")) %>% 
-  layout(yaxis = list(tickformat = ".2%"), showlegend = FALSE) %>% 
+fig2 <- plot_ly(
+  baza_acc_v2,
+  x = ~ ID,
+  y = ~ Short.term.positive.rate,
+  type = 'scatter',
+  mode = 'lines+markers',
+  frame = ~ frame,
+  hovertemplate = paste("Testy pozytywne: %{y}<extra></extra>")
+) %>%
+  layout(yaxis = list(tickformat = ".2%"), showlegend = FALSE) %>%
   animation_slider(currentvalue = list(prefix = "week "))
 fig <- subplot(fig1, fig2, nrows = 2) %>%
   layout(title = kraj,
-         showlegend = FALSE) %>% 
-  animation_opts(frame = 10, 
-                 transition = 10,
-                 easing = "linear",
-                 redraw = TRUE)
+         showlegend = FALSE) %>%
+  animation_opts(
+    frame = 10,
+    transition = 10,
+    easing = "linear",
+    redraw = TRUE
+  )
 fig
 
 # SUKCES!
@@ -298,24 +344,34 @@ fig
 # https://plotly.com/r/animations/
 
 ### Dane =====================================================================================================
-deaths_ts <- read.csv("https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_deaths_global.csv") %>% 
-  select(!c(Province.State, Lat, Long)) %>% 
-  aggregate(.~Country.Region, FUN = sum) %>% 
-  pivot_longer(!Country.Region, names_to = "date", values_to = "deaths") %>% 
-  mutate(date = as.POSIXct(reduce2(c('X', '\\.'), c('', '-'),  .init = date, str_replace_all), format = "%m-%d-%y"))
+deaths_ts <-
+  read.csv(
+    "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_deaths_global.csv"
+  ) %>%
+  select(!c(Province.State, Lat, Long)) %>%
+  aggregate(. ~ Country.Region, FUN = sum) %>%
+  pivot_longer(!Country.Region, names_to = "date", values_to = "deaths") %>%
+  mutate(date = as.POSIXct(reduce2(
+    c('X', '\\.'), c('', '-'),  .init = date, str_replace_all
+  ), format = "%m-%d-%y"))
 
-recovered_ts <- read.csv("https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_recovered_global.csv") %>% 
-  select(!c(Province.State, Lat, Long)) %>% 
-  aggregate(.~Country.Region, FUN = sum) %>% 
-  pivot_longer(!Country.Region, names_to = "date", values_to = "recovery") %>% 
-  mutate(date = str_replace(date, "X", "")) %>% 
-  mutate(date = as.POSIXct(reduce2(c('X', '\\.'), c('', '-'),  .init = date, str_replace_all), format = "%m-%d-%y"))
+recovered_ts <-
+  read.csv(
+    "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_recovered_global.csv"
+  ) %>%
+  select(!c(Province.State, Lat, Long)) %>%
+  aggregate(. ~ Country.Region, FUN = sum) %>%
+  pivot_longer(!Country.Region, names_to = "date", values_to = "recovery") %>%
+  mutate(date = str_replace(date, "X", "")) %>%
+  mutate(date = as.POSIXct(reduce2(
+    c('X', '\\.'), c('', '-'),  .init = date, str_replace_all
+  ), format = "%m-%d-%y"))
 
 df_ts <- deaths_ts %>%
-  left_join(recovered_ts, by = c("Country.Region", "date")) %>% 
-  mutate(iso3c = countrycode(Country.Region, origin = "country.name", destination = "iso3c")) %>% 
-  drop_na() %>% 
-  group_by(iso3c) %>% 
+  left_join(recovered_ts, by = c("Country.Region", "date")) %>%
+  mutate(iso3c = countrycode(Country.Region, origin = "country.name", destination = "iso3c")) %>%
+  drop_na() %>%
+  group_by(iso3c) %>%
   mutate(id = 1:n()) %>% # zbędne, ale zostawię jako dobry trik
   ungroup()
 
@@ -333,35 +389,44 @@ df_ts %>% glimpse()
 ## "Pokaz slajdów" ===========================================================================================
 # tst <- df_ts %>% filter(Country.Region %in% c("Poland","France")) %>% filter(date >= as.Date("2021-08-01") & date <= as.Date("2021-08-04"))
 d_vs_r <- df_ts %>%
-  filter(Country.Region %in% c("Poland", "France", "Germany", "Italy", "Czechia")) %>% 
-  filter(date >= as.Date("2020-04-01") & date <= as.Date("2021-08-01"))
+  filter(Country.Region %in% c("Poland", "France", "Germany", "Italy", "Czechia")) %>%
+  filter(date >= as.Date("2020-04-01") &
+           date <= as.Date("2021-08-01"))
 
 # Nie dodajemy labelek z wartościami, ponieważ ich animacja działa tak, że wartości,
 # pojawiają się w lewym górnym rogu i szybują na swoje miejsce, co przy dużej ilości przejść jest mylące
-plot_ly(data = d_vs_r,
-        x = ~Country.Region,
-        y = ~deaths,
-        name = "deaths",
-        frame = ~date,
-        marker = list(color = "red"),
-        type = 'bar',
-        # text = ~deaths,
-        # textposition = 'top',
-        hovertemplate = paste("Deaths: %{y}<extra></extra>")) %>% 
-  add_trace(y = ~recovery,
-            name = 'recovery',
-            marker = list(color = "green"),
-            # text = ~recovery,
-            # textposition = 'top',
-            hovertemplate = paste("Recoveries: %{y}<extra></extra>")) %>% 
-  layout(title = "deaths vs recovery",
-         xaxis = list(title = "Country"),
-         yaxis = list(title = ""),
-         showlegend = FALSE) %>% 
-  animation_opts(frame = 100, 
-                 transition = 100,
-                 easing = "linear",
-                 redraw = TRUE) %>% 
+plot_ly(
+  data = d_vs_r,
+  x = ~ Country.Region,
+  y = ~ deaths,
+  name = "deaths",
+  frame = ~ date,
+  marker = list(color = "red"),
+  type = 'bar',
+  # text = ~deaths,
+  # textposition = 'top',
+  hovertemplate = paste("Deaths: %{y}<extra></extra>")
+) %>%
+  add_trace(
+    y = ~ recovery,
+    name = 'recovery',
+    marker = list(color = "green"),
+    # text = ~recovery,
+    # textposition = 'top',
+    hovertemplate = paste("Recoveries: %{y}<extra></extra>")
+  ) %>%
+  layout(
+    title = "deaths vs recovery",
+    xaxis = list(title = "Country"),
+    yaxis = list(title = ""),
+    showlegend = FALSE
+  ) %>%
+  animation_opts(
+    frame = 100,
+    transition = 100,
+    easing = "linear",
+    redraw = TRUE
+  ) %>%
   animation_slider(currentvalue = list(prefix = "date "))
 
 
@@ -396,17 +461,15 @@ plot_ly(data = d_vs_r,
 
 # Budnopis ===================================================================================================
 
-df <- data.frame(
-  x = c(1,2,1), 
-  y = c(1,2,1), 
-  f = c(1,2,3)
-)
+df <- data.frame(x = c(1, 2, 1),
+                 y = c(1, 2, 1),
+                 f = c(1, 2, 3))
 
 fig <- df %>%
   plot_ly(
-    x = ~x,
-    y = ~y,
-    frame = ~f,
+    x = ~ x,
+    y = ~ y,
+    frame = ~ f,
     type = 'scatter',
     mode = 'markers',
     showlegend = F
@@ -418,55 +481,50 @@ accumulate_by <- function(dat, var) {
   var <- lazyeval::f_eval(var, dat)
   lvls <- plotly:::getLevels(var)
   dats <- lapply(seq_along(lvls), function(x) {
-    cbind(dat[var %in% lvls[seq(1, x)], ], frame = lvls[[x]])
+    cbind(dat[var %in% lvls[seq(1, x)],], frame = lvls[[x]])
   })
   dplyr::bind_rows(dats)
 }
 
-df <- txhousing 
+df <- txhousing
 fig <- df %>%
   filter(year > 2005, city %in% c("Abilene", "Bay Area"))
-fig <- fig %>% accumulate_by(~date)
+fig <- fig %>% accumulate_by( ~ date)
 
 
 fig <- fig %>%
   plot_ly(
-    x = ~date, 
-    y = ~median,
-    split = ~city,
-    frame = ~frame, 
+    x = ~ date,
+    y = ~ median,
+    split = ~ city,
+    frame = ~ frame,
     type = 'scatter',
-    mode = 'lines', 
+    mode = 'lines',
     line = list(simplyfy = F)
   )
 fig <- fig %>% layout(
-  xaxis = list(
-    title = "Date",
-    zeroline = F
-  ),
-  yaxis = list(
-    title = "Median",
-    zeroline = F
-  )
-) 
-fig <- fig %>% animation_opts(
-  frame = 100, 
-  transition = 0, 
-  redraw = FALSE
+  xaxis = list(title = "Date",
+               zeroline = F),
+  yaxis = list(title = "Median",
+               zeroline = F)
 )
-fig <- fig %>% animation_slider(
-  hide = T
-)
+fig <- fig %>% animation_opts(frame = 100,
+                              transition = 0,
+                              redraw = FALSE)
+fig <- fig %>% animation_slider(hide = T)
 fig <- fig %>% animation_button(
-  x = 1, xanchor = "right", y = 0, yanchor = "bottom"
+  x = 1,
+  xanchor = "right",
+  y = 0,
+  yanchor = "bottom"
 )
 
 fig
 
 library(quantmod)
-getSymbols("AAPL",src='yahoo')
+getSymbols("AAPL", src = 'yahoo')
 
-df <- data.frame(Date=index(AAPL),coredata(AAPL))
+df <- data.frame(Date = index(AAPL), coredata(AAPL))
 df <- tail(df, 30)
 df$ID <- seq.int(nrow(df))
 
@@ -474,64 +532,69 @@ accumulate_by <- function(dat, var) {
   var <- lazyeval::f_eval(var, dat)
   lvls <- plotly:::getLevels(var)
   dats <- lapply(seq_along(lvls), function(x) {
-    cbind(dat[var %in% lvls[seq(1, x)], ], frame = lvls[[x]])
+    cbind(dat[var %in% lvls[seq(1, x)],], frame = lvls[[x]])
   })
   dplyr::bind_rows(dats)
 }
 
-df <- df %>% accumulate_by(~ID)
+df <- df %>% accumulate_by( ~ ID)
 
 fig <- df %>% plot_ly(
-  x = ~ID, 
-  y = ~AAPL.Close, 
-  frame = ~frame,
-  type = 'scatter', 
-  mode = 'lines', 
-  fill = 'tozeroy', 
-  fillcolor='rgba(114, 186, 59, 0.5)',
+  x = ~ ID,
+  y = ~ AAPL.Close,
+  frame = ~ frame,
+  type = 'scatter',
+  mode = 'lines',
+  fill = 'tozeroy',
+  fillcolor = 'rgba(114, 186, 59, 0.5)',
   line = list(color = 'rgb(114, 186, 59)'),
-  text = ~paste("Day: ", ID, "<br>Close: $", AAPL.Close), 
+  text = ~ paste("Day: ", ID, "<br>Close: $", AAPL.Close),
   hoverinfo = 'text'
 )
 fig <- fig %>% layout(
   title = "AAPL: Last 30 days",
   yaxis = list(
-    title = "Close", 
-    range = c(0,250), 
+    title = "Close",
+    range = c(0, 250),
     zeroline = F,
     tickprefix = "$"
   ),
   xaxis = list(
-    title = "Day", 
-    range = c(0,30), 
-    zeroline = F, 
+    title = "Day",
+    range = c(0, 30),
+    zeroline = F,
     showgrid = F
   )
-) 
-fig <- fig %>% animation_opts(
-  frame = 100, 
-  transition = 0, 
-  redraw = FALSE
 )
-fig <- fig %>% animation_slider(
-  currentvalue = list(
-    prefix = "Day "
-  )
-)
+fig <- fig %>% animation_opts(frame = 100,
+                              transition = 0,
+                              redraw = FALSE)
+fig <- fig %>% animation_slider(currentvalue = list(prefix = "Day "))
 
 fig
 
 x <- c('Product A', 'Product B', 'Product C')
 y <- c(20, 14, 23)
-text <- c('27% market share', '24% market share', '19% market share')
+text <-
+  c('27% market share', '24% market share', '19% market share')
 data <- data.frame(x, y, text)
 
-fig <- plot_ly(data, x = ~x, y = ~y, type = 'bar',
-               text = y, textposition = 'up',
-               marker = list(color = 'rgb(158,202,225)',
-                             line = list(color = 'rgb(8,48,107)', width = 1.5)))
-fig <- fig %>% layout(title = "January 2013 Sales Report",
-                      xaxis = list(title = ""),
-                      yaxis = list(title = ""))
+fig <- plot_ly(
+  data,
+  x = ~ x,
+  y = ~ y,
+  type = 'bar',
+  text = y,
+  textposition = 'up',
+  marker = list(
+    color = 'rgb(158,202,225)',
+    line = list(color = 'rgb(8,48,107)', width = 1.5)
+  )
+)
+fig <- fig %>% layout(
+  title = "January 2013 Sales Report",
+  xaxis = list(title = ""),
+  yaxis = list(title = "")
+)
 
 fig

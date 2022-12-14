@@ -28,7 +28,7 @@ bigmac %>% glimpse()
 # local_price - cena Big Maca w lokalnej walucie
 # dollar_ex - jednostki waluty lokalnej na dolara (kurs dolara)
 # dollar_price - cena Big Maca w dolarach
-  
+
 ## Przygotowanie Danych ================================================================================================
 
 # Uzupełnienie currency_code
@@ -40,26 +40,28 @@ is.na(bigmac$name) %>% table() %>% kable()
 
 # Wenezuela ma dwie waluty - problem ze złączeniem wiele do wielu
 bigmac_clean <- bigmac %>%
-  left_join((bigmac %>% select(currency_code, name) %>% drop_na() %>% filter(name != "Venezuela") %>% distinct()),
-            by = "name") %>% 
+  left_join((
+    bigmac %>% select(currency_code, name) %>% drop_na() %>% filter(name != "Venezuela") %>% distinct()
+  ),
+  by = "name") %>%
   mutate(currency_code = coalesce(currency_code.x, currency_code.y),
          .keep = "unused")
 
 # bigmac_clean$currency_code %>% table() %>% as.data.frame() %>%
-#   left_join(bigmac$currency_code %>% table() %>% as.data.frame(), by = ".") %>% 
-#   mutate(tst = Freq.x == Freq.y) %>% 
+#   left_join(bigmac$currency_code %>% table() %>% as.data.frame(), by = ".") %>%
+#   mutate(tst = Freq.x == Freq.y) %>%
 #   view()
 
 # Zmiana zapisu naukowego w local_price
 # to rozwiazanie zamienia wartosci dbl w chr - problem
 # bigmac_clean <- bigmac_clean %>%
 #   mutate(local_price = format(round(local_price, 2), scientific = FALSE, big.mark = " "))
-options(scipen=999)
-bigmac_clean <- bigmac_clean %>% 
+options(scipen = 999)
+bigmac_clean <- bigmac_clean %>%
   mutate(local_price = round(local_price, 2))
 
 # Formatowanie dat
-bigmac_clean <- bigmac_clean %>% 
+bigmac_clean <- bigmac_clean %>%
   mutate(date = as.Date(date, tryFormats = c("%d.%m.%Y")))
 
 # Uzupełnienie dat
@@ -73,12 +75,13 @@ bigmac_clean <- bigmac_clean %>%
 # "Uciąglenie" dollar_price
 bigmac_clean$dollar_price %>% is.na() %>% table()
 
-bigmac_clean <- bigmac_clean %>% 
-  group_by(name) %>% 
+bigmac_clean <- bigmac_clean %>%
+  group_by(name) %>%
   # wewnątrz grupy, jeżeli NA, to wez srednia z poprzedniej i kolejnej wartosci
   mutate(dollar_price = coalesce(dollar_price,
-                                 (lag(dollar_price)+lead(dollar_price))/2)) %>%
-  ungroup() %>% 
+                                 (lag(dollar_price) + lead(dollar_price)) /
+                                   2)) %>%
+  ungroup() %>%
   # reszte wypelnil pierwsza (kolejna) napotkana wartoscia
   fill(dollar_price, .direction = "up")
 
@@ -99,18 +102,23 @@ df <- bigmac_clean %>%
   ungroup() %>%
   filter(count >= 35 & name != "Euro area") %>%
   mutate(iso2c = tolower(countrycode(name, "country.name", "iso2c")))
- 
+
 df %>% select(name) %>% table() %>% kable()
 
-animation <- ggplot(df,  aes(x = dollar_price,
-                             y = name,
-                             country = iso2c,
-                             label=sprintf("%0.2f", round(local_price, digits = 2)))) +
+animation <- ggplot(df,  aes(
+  x = dollar_price,
+  y = name,
+  country = iso2c,
+  label = sprintf("%0.2f", round(local_price, digits = 2))
+)) +
   geom_bar(stat = "identity") +
-  geom_text(hjust=1.5, color="white", size=3.5) +
+  geom_text(hjust = 1.5,
+            color = "white",
+            size = 3.5) +
   geom_flag(aes(country = iso2c), size = 7) +
-  theme(legend.position="none", plot.title = element_text(size=25)) +
+  theme(legend.position = "none", plot.title = element_text(size = 25)) +
   transition_time(date) +
   labs(title = "{frame_time}", x = "Big Mac (local price) dollar price", y = "")
 
 animate(animation, duration = 30, fps = 10)
+
